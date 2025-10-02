@@ -8,6 +8,26 @@
   let isLoading = false;
   let errorMsg = '';
   
+  const EMOJI = { joy: '🌟', sad: '💙', anger: '🔥' };
+  const EMOTION_ORDER = ['sad', 'anger', 'joy'];
+
+  function parseTaggedSegments(str) {
+    const out = [];
+    if (typeof str !== 'string' || !str) return out;
+    const re = /\((joy|sad|anger)\)\[(.*?)\]/g; // (emotion)[text]
+    let m;
+    while ((m = re.exec(str)) !== null) {
+      const emotion = (m[1] || '').toLowerCase();
+      const text = (m[2] || '').trim();
+      if (EMOTION_ORDER.includes(emotion) && text) out.push({ emotion, text });
+    }
+    return out;
+  }
+
+  function getSegments(message) {
+    if (Array.isArray(message?.segments) && message.segments.length) return message.segments;
+    return parseTaggedSegments(message?.content || '');
+  }
 
   onMount(() => {});
 
@@ -30,7 +50,7 @@
       return;
     }
     if (data.assistantMessage) {
-      messages = [...messages, { role: 'assistant', content: data.assistantMessage }];
+      messages = [...messages, { role: 'assistant', content: data.assistantMessage, segments: data.segments || [] }];
       replierInput = data.replierInput || null;
     }
     isLoading = false;
@@ -85,6 +105,24 @@
   .assistant { background: #f5f7fb; color: #0f172a; align-self: flex-start; border: 1px solid #e5e7eb; }
   .bubble:hover { outline: 2px solid transparent; box-shadow: 0 1px 0 rgba(2,6,23,0.04); }
   .meta { color: var(--muted); font-size: 0.8rem; margin-bottom: 0.15rem; }
+
+  /* Emotion segment visuals */
+  :global(:root) {
+    --joy: #f59e0b; /* amber-500 */
+    --sad: #3b82f6; /* blue-500 */
+    --anger: #ef4444; /* red-500 */
+  }
+  .seg { display: inline; padding-bottom: 1px; margin-right: 0.25rem; }
+  .seg-tag { font-size: 0.85em; opacity: 0.8; margin-right: 0.2rem; }
+  .seg-joy { text-decoration: underline; text-decoration-color: var(--joy); border-bottom: 2px solid var(--joy); }
+  .seg-sad { text-decoration: underline; text-decoration-color: var(--sad); border-bottom: 2px solid var(--sad); }
+  .seg-anger { text-decoration: underline; text-decoration-color: var(--anger); border-bottom: 2px solid var(--anger); }
+
+  .icons { display: flex; gap: 6px; margin-top: 6px; align-items: center; }
+  .icon { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+  .icon-joy { background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.45); }
+  .icon-sad { background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.45); }
+  .icon-anger { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.45); }
 
   .toolbar { display: flex; gap: 1rem; align-items: center; justify-content: space-between; margin: 0.75rem 0; }
 
@@ -141,7 +179,24 @@
     {#each messages as m, i}
       <div class="bubble {m.role}">
         <div class="meta">{m.role}</div>
-        <div>{m.content}</div>
+        {#if m.role === 'assistant'}
+          {#if getSegments(m).length > 0}
+            <div>
+              {#each getSegments(m) as s}
+                <span class="seg seg-{s.emotion}"><span class="seg-tag">({s.emotion})</span>{s.text}</span>
+              {/each}
+            </div>
+            <div class="icons" aria-label="Emotions in this reply">
+              {#each getSegments(m) as s}
+                <span class="icon icon-{s.emotion}" title={s.emotion}>{EMOJI[s.emotion]}</span>
+              {/each}
+            </div>
+          {:else}
+            <div>{m.content}</div>
+          {/if}
+        {:else}
+          <div>{m.content}</div>
+        {/if}
       </div>
     {/each}
     {#if isLoading}
