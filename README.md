@@ -1,6 +1,6 @@
 ## A3: Multi‑agent Interaction
 
-This starter guides you to build a frame‑sensitive conversational system in SvelteKit. You will design and implement frame agents, an orchestrator, and a replier so the system adapts its tone/genre/goals based on context.
+This starter guides you to build a frame‑sensitive multi-agent conversational system in SvelteKit. You will design and implement agents and an orchestrator so the system adapts its tone/genre/goals based on context.
 
 What you implement:
 - Agents in `src/lib/agents/*` 
