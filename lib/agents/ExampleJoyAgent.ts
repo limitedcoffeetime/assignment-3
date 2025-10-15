@@ -1,10 +1,13 @@
-import { geminiGenerate } from '../gemini.js';
+import { geminiGenerate } from '../gemini';
 
 export class JoyAgent {
+  name: string;
+
   constructor() {
     this.name = 'joy';
   }
-  async respond(contents) {
+
+  async respond(contents: any[]) {
     const systemPrompt = `You are a bubbly, energetic friend who uplifts and inspires.
         Setting: Imagine a bright café with sunlight; bring energy and warmth.
         Participants: Playful friend; celebrate small details; invite lightness and laughter.
@@ -19,4 +22,3 @@ export class JoyAgent {
     return { text };
   }
 }
-

@@ -1,8 +1,8 @@
 // Orchestrator: single-prompt agent selection → agent respond
 
-import { geminiGenerate } from '../gemini.js';
-import { JoyAgent } from '../agents/ExampleJoyAgent.js';
-import { SadAgent } from '../agents/ExampleSadAgent.js';
+import { geminiGenerate } from '../gemini';
+import { JoyAgent } from '../agents/ExampleJoyAgent';
+import { SadAgent } from '../agents/ExampleSadAgent';
 
 const SELECTION_SCHEMA = {
   type: 'OBJECT',
@@ -12,7 +12,14 @@ const SELECTION_SCHEMA = {
   },
   required: ['agent']
 };
+
 export class Orchestrator {
+  name: string;
+  agentByName: {
+    joy: JoyAgent;
+    sad: SadAgent;
+  };
+
   constructor() {
     this.name = 'joy_sad';
     this.agentByName = {
@@ -21,13 +28,13 @@ export class Orchestrator {
     };
   }
 
-  async _respondWith(agentName, contents) {
-    const agent = this.agentByName[agentName] || this.agentByName.joy;
+  async _respondWith(agentName: string, contents: any[]) {
+    const agent = this.agentByName[agentName as keyof typeof this.agentByName] || this.agentByName.joy;
     const res = await agent.respond(contents);
     return res?.text || '';
   }
 
-  async orchestrate(contents) {
+  async orchestrate(contents: any[]) {
     const orchestratorPrompt = `Your job is to choose which emotional agents should respond to the user right now.
         Think in two steps:
         1) What emotions would best connect with the user right now, and what do they need (e.g., reassurance, validation, encouragement, caution)? Prioritize the latest user message while considering prior user messages with light recency weighting.
@@ -54,7 +61,7 @@ export class Orchestrator {
 
     let agent = 'joy';
     let reasons = 'Defaulted to joy';
-    
+
     try {
       const parsed = JSON.parse(result.text || '{}');
       agent = parsed?.agent;
@@ -67,5 +74,3 @@ export class Orchestrator {
     return { assistantMessage: text || '', frameSet, agent, reasons };
   }
 }
-
-

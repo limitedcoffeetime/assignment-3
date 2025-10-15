@@ -1,10 +1,10 @@
 ## A3: Multi‑agent Interaction
 
-This starter guides you to build a frame‑sensitive conversational system in SvelteKit. You will design and implement frame agents, an orchestrator, and a replier so the system adapts its tone/genre/goals based on context.
+This application is a frame‑sensitive conversational system built with Next.js, React, TypeScript, Tailwind CSS, and Shadcn UI. You will design and implement frame agents, an orchestrator, and a replier so the system adapts its tone/genre/goals based on context.
 
 What you implement:
-- Agents in `src/lib/agents/*` 
-- Orchestrators in `src/lib/orchestrators/*` (also stubbed).
+- Agents in `lib/agents/*`
+- Orchestrators in `lib/orchestrators/*`
 
 ## Setup and Running the App
 
@@ -18,11 +18,11 @@ Install required tools (choose per OS):
 
 Clone and start the app:
 - `git clone <your-repo-url>`
-- `cd A3-Starter`
-- `cp .env.example .env` (you will fill it in Step 1)
+- `cd assignment-3`
+- `cp .env.example .env` (you will fill it in the next step)
 - `npm install`
 - `npm run dev`
-- Open `http://localhost:5173`
+- Open `http://localhost:3000`
 
 At this point, you should have a working app that you can use to chat with the replier; however, the replier will not be able to use the Gemini API because you have not yet added your API key to `.env`.
 
@@ -68,5 +68,16 @@ Safety reminders:
 
 ## Quick Dev Reference
 
-- Start dev server: `npm run dev` (http://localhost:5173)
+- Start dev server: `npm run dev` (http://localhost:3000)
 - Build: `npm run build`
+- Start production server: `npm run start`
+- Lint code: `npm run lint`
+
+## Tech Stack
+
+- **Framework**: Next.js 15 with App Router
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **UI Components**: Shadcn UI
+- **AI**: Google Gemini API
+- **Deployment**: Vercel
