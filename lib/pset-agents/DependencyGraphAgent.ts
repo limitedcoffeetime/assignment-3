@@ -8,7 +8,7 @@
  */
 
 import { Agent, DependencyGraphInput, DependencyGraphOutput, Problem, DependencyGraph } from '../types';
-import { createGeminiFlash } from '../llm/GeminiProvider';
+import { createGeminiFlash, GeminiProvider } from '../llm/GeminiProvider';
 
 export class DependencyGraphAgent implements Agent {
   name = 'dependency-graph';
@@ -57,19 +57,19 @@ export class DependencyGraphAgent implements Agent {
 
     try {
       const SCHEMA = {
-        type: 'OBJECT',
+        type: GeminiProvider.Type.OBJECT,
         properties: {
           dependencies: {
-            type: 'ARRAY',
+            type: GeminiProvider.Type.ARRAY,
             items: {
-              type: 'OBJECT',
+              type: GeminiProvider.Type.OBJECT,
               properties: {
-                problemId: { type: 'STRING' },
+                problemId: { type: GeminiProvider.Type.STRING },
                 dependsOn: {
-                  type: 'ARRAY',
-                  items: { type: 'STRING' },
+                  type: GeminiProvider.Type.ARRAY,
+                  items: { type: GeminiProvider.Type.STRING },
                 },
-                reasoning: { type: 'STRING' },
+                reasoning: { type: GeminiProvider.Type.STRING },
               },
               required: ['problemId', 'dependsOn'],
             },

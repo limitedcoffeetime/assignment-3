@@ -6,20 +6,20 @@
  */
 
 import { Agent, RouterInput, RouterOutput, RouterIntent } from '../types';
-import { createGeminiFlash } from '../llm/GeminiProvider';
+import { createGeminiFlash, GeminiProvider } from '../llm/GeminiProvider';
 
 const ROUTER_SCHEMA = {
-  type: 'OBJECT',
+  type: GeminiProvider.Type.OBJECT,
   properties: {
     intent: {
-      type: 'STRING',
+      type: GeminiProvider.Type.STRING,
       enum: ['solve', 'status', 'cancel', 'unknown'],
     },
     confidence: {
-      type: 'NUMBER',
+      type: GeminiProvider.Type.NUMBER,
     },
     reasoning: {
-      type: 'STRING',
+      type: GeminiProvider.Type.STRING,
     },
   },
   required: ['intent', 'confidence', 'reasoning'],

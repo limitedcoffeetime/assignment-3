@@ -5,14 +5,14 @@
  * Includes a compilation feedback loop to fix LaTeX syntax errors.
  */
 
-import { Agent, SolverInput, SolverOutput } from '../types';
-import { createGeminiProThinking } from '../llm/GeminiProvider';
+import { Agent, SolverInput, SolverOutput, Problem } from '../types';
+import { createGeminiPro } from '../llm/GeminiProvider';
 import { compileLatex, formatErrorsForLLM } from '../latex/compiler';
 import { createTestDocument } from '../latex/preamble';
 
 export class ProblemSolverAgent implements Agent {
   name = 'problem-solver';
-  private llm = createGeminiProThinking();
+  private llm = createGeminiPro(); // Gemini 2.5 Pro with thinking enabled
 
   async execute(input: SolverInput): Promise<SolverOutput> {
     const { problem, dependencyContext, latexPreamble, previousErrors } = input;
@@ -28,6 +28,7 @@ export class ProblemSolverAgent implements Agent {
         systemPrompt,
         temperature: 0.7, // Allow some creativity in solutions
         maxTokens: 4000, // Generous limit for detailed solutions
+        thinkingBudget: 1024, // Enable extended thinking for complex problems (min 128 for Pro)
       });
 
       // Extract just the solution content (remove any thinking/reasoning if present)

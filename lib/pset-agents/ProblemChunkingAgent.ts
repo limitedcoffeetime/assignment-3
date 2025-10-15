@@ -2,29 +2,26 @@
  * Problem Chunking Agent
  *
  * Takes raw LaTeX and breaks it into structured, hierarchical problems.
- * Uses Claude for its strong structured output capabilities.
- *
- * NOTE: This is a PLACEHOLDER implementation. The actual Claude API
- * integration needs to be completed in ClaudeProvider.ts
+ * Uses Gemini 2.5 Flash with structured output.
  */
 
 import { Agent, ChunkingInput, ChunkingOutput, Problem } from '../types';
-import { createClaudeSonnet } from '../llm/ClaudeProvider';
+import { createGeminiFlash, GeminiProvider } from '../llm/GeminiProvider';
 
 const PROBLEM_SCHEMA = {
-  type: 'object',
+  type: GeminiProvider.Type.OBJECT,
   properties: {
     problems: {
-      type: 'array',
+      type: GeminiProvider.Type.ARRAY,
       items: {
-        type: 'object',
+        type: GeminiProvider.Type.OBJECT,
         properties: {
-          id: { type: 'string' },
-          parentId: { type: 'string', nullable: true },
-          number: { type: 'string' },
-          text: { type: 'string' },
-          level: { type: 'number' },
-          children: { type: 'array' },
+          id: { type: GeminiProvider.Type.STRING },
+          parentId: { type: GeminiProvider.Type.STRING, nullable: true },
+          number: { type: GeminiProvider.Type.STRING },
+          text: { type: GeminiProvider.Type.STRING },
+          level: { type: GeminiProvider.Type.INTEGER },
+          children: { type: GeminiProvider.Type.ARRAY, items: {} },
         },
         required: ['id', 'number', 'text', 'level'],
       },
@@ -35,7 +32,7 @@ const PROBLEM_SCHEMA = {
 
 export class ProblemChunkingAgent implements Agent {
   name = 'problem-chunking';
-  private llm = createClaudeSonnet();
+  private llm = createGeminiFlash();
 
   async execute(input: ChunkingInput): Promise<ChunkingOutput> {
     const { rawLatex } = input;
@@ -43,7 +40,6 @@ export class ProblemChunkingAgent implements Agent {
     const prompt = this.buildPrompt(rawLatex);
 
     try {
-      // TODO: This will throw until ClaudeProvider is implemented
       const result = await this.llm.generateStructured<{ problems: Problem[] }>(
         prompt,
         PROBLEM_SCHEMA,
@@ -61,6 +57,7 @@ export class ProblemChunkingAgent implements Agent {
 
       // For development/testing, return mock data
       if (process.env.NODE_ENV === 'development') {
+        console.warn('Using mock problem data for development');
         return { problems: this.getMockProblems() };
       }
 

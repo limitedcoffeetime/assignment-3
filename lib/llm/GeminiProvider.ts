@@ -1,47 +1,70 @@
 /**
- * Gemini LLM Provider
+ * Gemini Provider
  *
- * Implements the LLM provider interface for Google's Gemini models.
- * Already integrated with the existing gemini.ts helper.
+ * Simplified provider for all Gemini API interactions.
+ * Supports text generation, structured output, multimodal, and thinking mode.
  */
 
-import { BaseLLMProvider } from './LLMProvider';
-import { LLMOptions } from '../types';
-import { geminiGenerate } from '../gemini';
+import { GoogleGenAI, Type } from '@google/genai';
+import type { GenerateContentParameters } from '@google/genai';
 
-export class GeminiProvider extends BaseLLMProvider {
-  name = 'gemini';
+export interface GeminiOptions {
+  systemPrompt?: string;
+  temperature?: number;
+  maxTokens?: number;
+  thinkingBudget?: number; // For Gemini 2.5 Pro (min 128, or -1 for dynamic)
+}
+
+export class GeminiProvider {
+  private ai: GoogleGenAI;
 
   constructor(
     private model: string = 'gemini-2.5-flash',
-    private apiKey?: string
+    apiKey?: string
   ) {
-    super();
+    this.ai = new GoogleGenAI({ apiKey: apiKey || process.env.GEMINI_API_KEY });
   }
 
-  async generateText(prompt: string, options?: LLMOptions): Promise<string> {
-    const contents = [{ role: 'user', parts: [{ text: prompt }] }];
+  /**
+   * Generate text from a prompt (optionally with multimodal content)
+   */
+  async generateText(
+    prompt: string | any[],
+    options?: GeminiOptions
+  ): Promise<string> {
+    const contents = typeof prompt === 'string' ? prompt : prompt;
 
     const config: any = {
       temperature: options?.temperature,
       maxOutputTokens: options?.maxTokens,
     };
 
-    const result = await geminiGenerate({
+    if (options?.systemPrompt) {
+      config.systemInstruction = options.systemPrompt;
+    }
+
+    if (options?.thinkingBudget !== undefined) {
+      config.thinkingConfig = { thinkingBudget: options.thinkingBudget };
+    }
+
+    const response = await this.ai.models.generateContent({
+      model: this.model,
       contents,
-      systemPrompt: options?.systemPrompt || '',
       config,
     });
 
-    return result.text;
+    return response.text || '';
   }
 
+  /**
+   * Generate structured JSON output with schema validation
+   */
   async generateStructured<T = any>(
-    prompt: string,
+    prompt: string | any[],
     schema: any,
-    options?: LLMOptions
+    options?: GeminiOptions
   ): Promise<T> {
-    const contents = [{ role: 'user', parts: [{ text: prompt }] }];
+    const contents = typeof prompt === 'string' ? prompt : prompt;
 
     const config: any = {
       temperature: options?.temperature,
@@ -50,18 +73,41 @@ export class GeminiProvider extends BaseLLMProvider {
       responseSchema: schema,
     };
 
-    const result = await geminiGenerate({
+    if (options?.systemPrompt) {
+      config.systemInstruction = options.systemPrompt;
+    }
+
+    const response = await this.ai.models.generateContent({
+      model: this.model,
       contents,
-      systemPrompt: options?.systemPrompt || '',
       config,
     });
 
-    return JSON.parse(result.text) as T;
+    return JSON.parse(response.text || '{}') as T;
+  }
+
+  /**
+   * Create a multimodal part from a file buffer
+   */
+  static createFilePart(buffer: Buffer, mimeType: string) {
+    return {
+      inlineData: {
+        data: buffer.toString('base64'),
+        mimeType,
+      },
+    };
+  }
+
+  /**
+   * Helper to create common schema types
+   */
+  static get Type() {
+    return Type;
   }
 }
 
 /**
- * Factory function for creating Gemini providers
+ * Factory functions
  */
 export function createGeminiFlash(): GeminiProvider {
   return new GeminiProvider('gemini-2.5-flash');
@@ -69,9 +115,4 @@ export function createGeminiFlash(): GeminiProvider {
 
 export function createGeminiPro(): GeminiProvider {
   return new GeminiProvider('gemini-2.5-pro');
-}
-
-export function createGeminiProThinking(): GeminiProvider {
-  // TODO: Update model name when thinking mode is available
-  return new GeminiProvider('gemini-2.5-pro-thinking');
 }

@@ -1,8 +1,11 @@
 /**
  * LaTeX Compilation System
  *
- * Compiles LaTeX documents to PDF using a local LaTeX installation.
- * Handles error parsing and provides feedback for the compilation loop.
+ * Compiles LaTeX documents to PDF using either:
+ * - Local LaTeX installation (development)
+ * - Remote LaTeX service (production/serverless)
+ *
+ * Automatically detects the environment and uses the appropriate method.
  */
 
 import { spawn } from 'child_process';
@@ -11,15 +14,52 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
 import { CompilationResult, CompilationOptions } from '../types';
+import { compileLatexRemote } from './compiler-remote';
+
+/**
+ * Detect if running in a serverless environment
+ */
+function isServerless(): boolean {
+  return !!(
+    process.env.VERCEL ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.NETLIFY ||
+    process.env.CLOUD_FUNCTIONS
+  );
+}
 
 /**
  * Compile a LaTeX document to PDF
+ *
+ * Automatically chooses local or remote compilation based on environment.
  *
  * @param latexContent - The complete LaTeX document (including preamble)
  * @param options - Compilation options
  * @returns CompilationResult with success status, PDF buffer, and errors
  */
 export async function compileLatex(
+  latexContent: string,
+  options: CompilationOptions = {}
+): Promise<CompilationResult> {
+  // Use remote compilation in serverless environments
+  if (isServerless()) {
+    console.log('[LaTeX Compiler] Using remote compilation (serverless environment)');
+    return compileLatexRemote(latexContent, options);
+  }
+
+  // Use local compilation in development
+  console.log('[LaTeX Compiler] Using local compilation');
+  return compileLatexLocal(latexContent, options);
+}
+
+/**
+ * Compile a LaTeX document to PDF using local pdflatex
+ *
+ * @param latexContent - The complete LaTeX document (including preamble)
+ * @param options - Compilation options
+ * @returns CompilationResult with success status, PDF buffer, and errors
+ */
+async function compileLatexLocal(
   latexContent: string,
   options: CompilationOptions = {}
 ): Promise<CompilationResult> {
@@ -130,8 +170,17 @@ function runCompiler(
       stderr += data.toString();
     });
 
-    process.on('error', (error) => {
-      reject(new Error(`Failed to run ${engine}: ${error.message}`));
+    process.on('error', (error: any) => {
+      if (error.code === 'ENOENT') {
+        reject(new Error(
+          `LaTeX engine '${engine}' not found. Please install LaTeX:\n` +
+          `  macOS: brew install --cask basictex\n` +
+          `  Linux: sudo apt-get install texlive-latex-base\n` +
+          `  Windows: Install MiKTeX or TeX Live`
+        ));
+      } else {
+        reject(new Error(`Failed to run ${engine}: ${error.message}`));
+      }
     });
 
     process.on('close', (code) => {

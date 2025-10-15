@@ -1,19 +1,15 @@
 /**
  * PDF Transcription Agent
  *
- * Uses a Vision Language Model (GPT-5 Vision) to transcribe a PDF
- * problem set into LaTeX format.
- *
- * NOTE: This is a PLACEHOLDER implementation. The actual GPT-5 Vision API
- * integration needs to be completed in GPTProvider.ts
+ * Uses Gemini 2.5 Flash multimodal to transcribe PDF problem sets into LaTeX.
  */
 
 import { Agent, TranscriptionInput, TranscriptionOutput } from '../types';
-import { createGPT5Vision } from '../llm/GPTProvider';
+import { createGeminiFlash, GeminiProvider } from '../llm/GeminiProvider';
 
 export class PDFTranscriptionAgent implements Agent {
   name = 'pdf-transcription';
-  private llm = createGPT5Vision();
+  private llm = createGeminiFlash();
 
   async execute(input: TranscriptionInput): Promise<TranscriptionOutput> {
     const { pdf } = input;
@@ -45,24 +41,18 @@ Return ONLY the LaTeX content for the problems. Do NOT include:
 Just the problem content itself.`;
 
     try {
-      // TODO: This will throw an error until GPTProvider vision is implemented
-      // The actual implementation should:
-      // 1. Convert PDF to images (or send PDF directly if API supports it)
-      // 2. Call GPT-5 Vision API with the images
-      // 3. Get back LaTeX transcription
-      // 4. Validate and clean the output
-
       const latex = await this.transcribePDF(pdf, systemPrompt);
 
       return {
         latex,
-        confidence: 0.9, // Could be determined by model if available
+        confidence: 0.9,
       };
     } catch (error: any) {
       console.error('PDF transcription error:', error);
 
-      // For development/testing, you might want to return mock data
+      // For development/testing, return mock data
       if (process.env.NODE_ENV === 'development') {
+        console.warn('Using mock transcription data for development');
         return {
           latex: this.getMockTranscription(),
           confidence: 0.0, // Indicate this is mock data
@@ -74,23 +64,19 @@ Just the problem content itself.`;
   }
 
   private async transcribePDF(pdf: Buffer, systemPrompt: string): Promise<string> {
-    // TODO: Implement actual PDF to LaTeX transcription
-    // This might involve:
-    // 1. Converting PDF to images using pdf-lib or similar
-    // 2. Calling GPT-5 Vision API for each page
-    // 3. Combining results
+    // Create PDF part for multimodal input
+    const pdfPart = GeminiProvider.createFilePart(pdf, 'application/pdf');
 
-    // Placeholder that uses the GPT provider (will throw until implemented)
-    // const result = await this.llm.analyzeImage(
-    //   pdf,
-    //   'Transcribe this problem set to LaTeX',
-    //   { systemPrompt }
-    // );
-    // return result;
-
-    throw new Error(
-      'PDF transcription not yet implemented. Please implement GPTProvider.analyzeImage()'
+    // Call Gemini with PDF and prompt
+    const latex = await this.llm.generateText(
+      [pdfPart, 'Transcribe this problem set to LaTeX format.'],
+      {
+        systemPrompt,
+        temperature: 0.2, // Low temperature for accurate transcription
+      }
     );
+
+    return latex.trim();
   }
 
   /**

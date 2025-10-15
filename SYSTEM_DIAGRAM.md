@@ -69,8 +69,41 @@
 │                                                                 │
 │  Stage 7: FINAL COMPILATION                                    │
 │    └─> compileLatex(document)                                │
-│         └─> pdflatex (local system)                          │
+│         └─> Auto-detects environment:                        │
+│              ├─> Local: pdflatex (if available)             │
+│              └─> Vercel: LaTeX.Online API                   │
 │              └─> Returns: final PDF                           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## LaTeX Compilation Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   LaTeX Compilation System                      │
+│                                                                 │
+│  lib/latex/compiler.ts                                         │
+│    ├─> isServerless() ?                                       │
+│    │                                                           │
+│    ├─> YES (Vercel/AWS/Netlify)                              │
+│    │    └─> compileLatexRemote()                             │
+│    │         └─> LaTeX.Online API                            │
+│    │              ├─> URL encode LaTeX                        │
+│    │              ├─> GET latexonline.cc/compile             │
+│    │              └─> Returns PDF Buffer                      │
+│    │                                                           │
+│    └─> NO (Local Development)                                │
+│         └─> compileLatexLocal()                              │
+│              ├─> Write .tex to /tmp                          │
+│              ├─> Run pdflatex subprocess                     │
+│              ├─> Parse errors if failed                      │
+│              └─> Returns PDF Buffer or errors                │
+│                                                                 │
+│  Fixed Environment: lib/latex/preamble.ts                      │
+│    └─> LATEX_PREAMBLE (constant)                             │
+│         ├─> Packages: amsmath, tikz, algorithm, etc.        │
+│         ├─> Custom commands: \R, \N, \Z, \problem, etc.     │
+│         └─> All LLMs must work within this environment       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
