@@ -1,212 +1,77 @@
-# LaTeX Problem Set Solver - Multi-Agent System
+## A3: Multi‑agent Interaction
 
-A sophisticated multi-agent system that automatically solves LaTeX problem sets using AI. Upload a PDF problem set and get back a fully solved, compiled PDF with detailed solutions.
+This application is a frame‑sensitive conversational system built with Next.js, React, TypeScript, Tailwind CSS, and Shadcn UI. You will design and implement frame agents, an orchestrator, and a replier so the system adapts its tone/genre/goals based on context.
 
-## Overview
+What you implement:
+- Agents in `lib/agents/*`
+- Orchestrators in `lib/orchestrators/*`
 
-This system uses multiple specialized AI agents to:
-1. **Transcribe** PDF problem sets to LaTeX (GPT-5 Vision)
-2. **Parse** and chunk problems into hierarchical structure (Claude)
-3. **Detect** dependencies between problems (Gemini)
-4. **Solve** problems in parallel with dependency awareness (Gemini 2.5 Pro)
-5. **Compile** solutions with automatic error fixing (LaTeX compilation loop)
-6. **Synthesize** final document with all solutions
+## Setup and Running the App
 
-## Architecture
+Install required tools (choose per OS):
+- Node.js 20.x (includes npm)
+  - macOS: `brew install node` (Homebrew), or download from nodejs.org
+  - Windows: install Node LTS from nodejs.org (includes npm)
+  - Linux: use your package manager or NodeSource installers
+- Git (to clone and manage the repo)
+- An editor (Cursor recommended)
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system design.
+Clone and start the app:
+- `git clone <your-repo-url>`
+- `cd assignment-3`
+- `cp .env.example .env` (you will fill it in the next step)
+- `npm install`
+- `npm run dev`
+- Open `http://localhost:3000`
 
-```
-User uploads PDF
-  ↓
-Router Agent → Determines intent (solve/status/cancel)
-  ↓
-PDF Transcription → LaTeX
-  ↓
-Problem Chunking → Structured problems
-  ↓
-Dependency Graph → Topological levels
-  ↓
-Parallel Solving → Individual solutions (with compilation loops)
-  ↓
-Synthesis → Final PDF
-```
+At this point, you should have a working app that you can use to chat with the replier; however, the replier will not be able to use the Gemini API because you have not yet added your API key to `.env`.
 
-## Key Features
+## Getting Started with the Gemini API
 
-- **Dependency-aware parallelization**: Solves independent problems simultaneously
-- **Automatic LaTeX error fixing**: Compilation loop provides feedback to LLMs
-- **Fixed LaTeX environment**: Consistent formatting across all solutions
-- **Real-time status tracking**: Monitor progress through the pipeline
-- **Serverless-ready**: Auto-detects environment for LaTeX compilation
+Per the instructions in Canvas, add Google API credits to a personal Google account.
 
-## Project Structure
+Important: While you will use your `@mit.edu` email to get a coupon code for Gemini credits, do NOT claim credits using your `@mit.edu` email. Instead, use a personal Google account to avoid institutional billing/limits.
+
+Once you have credits added, you can create an API key in Google AI Studio and add it to `.env`.
+
+Steps:
+- Go to Google AI Studio (https://aistudio.google.com/)
+- Click Get API Key
+- Click Create API Key
+- Copy your key and set environment values in `.env`:
 
 ```
-lib/
-├── types/               # TypeScript type definitions
-├── scheduler/           # Job state management and orchestration
-├── latex/              # LaTeX compilation and environment
-│   ├── compiler.ts     # Auto-detecting compiler (local/remote)
-│   ├── compiler-remote.ts  # LaTeX.Online API integration
-│   └── preamble.ts     # Fixed LaTeX environment
-├── llm/                # LLM provider interfaces
-│   ├── GeminiProvider.ts    # Implemented
-│   ├── GPTProvider.ts       # TODO: Implement
-│   └── ClaudeProvider.ts    # TODO: Implement
-├── pset-agents/        # Specialized agents for pipeline stages
-│   ├── RouterAgent.ts
-│   ├── PDFTranscriptionAgent.ts
-│   ├── ProblemChunkingAgent.ts
-│   ├── DependencyGraphAgent.ts
-│   ├── ProblemSolverAgent.ts
-│   └── SynthesizerAgent.ts
-└── orchestrators/      # Main pipeline coordinator
-    └── ProblemSetOrchestrator.ts
-
-app/
-├── api/
-│   ├── pset-solve/     # Main solving endpoint
-│   ├── pset-status/    # Status queries
-│   └── pset-cancel/    # Job cancellation
-└── page.tsx            # Chat interface
+GEMINI_API_KEY=your_api_key_here
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
-## Setup
+Restart `npm run dev` after changing `.env`.
 
-### Prerequisites
+## Safely Deploy to Vercel
 
-- Node.js 20.x
-- Git
-- API Keys:
-  - Google Gemini API (required)
-  - OpenAI API (for GPT-5 Vision - TODO)
-  - Anthropic API (for Claude - TODO)
+After implementing the agents and orchestrators, you can set up Vercel and deploy your application without exposing secrets.
 
-### Installation
+Reminder: do not commit `.env` or any API keys to Git.
 
-```bash
-# Clone repository
-git clone <repo-url>
-cd assignment-3
+Steps:
+- Create a Vercel account and import your GitHub repo as a new project
+- In Vercel Project Settings → Environment Variables, add:
+  - `GEMINI_API_KEY`
+  - `GEMINI_MODEL` (e.g., `gemini-2.5-flash`)
+- Trigger a deploy (Vercel builds and hosts your app)
+- Verify the app works at your Vercel URL
 
-# Install dependencies
-npm install
+Safety reminders:
+- Ensure `.env` is in `.gitignore` (already included)
+- Never push secrets to Git; use Vercel Environment Variables only
+- Optionally rotate keys after testing
 
-# Configure environment variables
-cp .env.example .env
-# Edit .env and add your API keys
-```
+## Quick Dev Reference
 
-### Environment Variables
-
-```bash
-# Required
-GEMINI_API_KEY=your_gemini_key
-
-# TODO: Add when implementing
-OPENAI_API_KEY=your_openai_key
-ANTHROPIC_API_KEY=your_anthropic_key
-
-# Optional: Custom LaTeX service (for high traffic)
-# LATEX_SERVICE_URL=https://your-latex-service.railway.app
-```
-
-### Development
-
-```bash
-# Start development server
-npm run dev
-
-# Open http://localhost:3000
-```
-
-## LaTeX Compilation
-
-The system uses **LaTeX.Online** (https://latexonline.cc/) for PDF compilation:
-
-- **Development**: Uses local `pdflatex` if available, else LaTeX.Online
-- **Production (Vercel)**: Automatically uses LaTeX.Online API
-- **Scaling**: Can switch to self-hosted service via `LATEX_SERVICE_URL`
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for details.
-
-## Implementation Status
-
-### ✅ Complete
-
-- Full type system and interfaces
-- Scheduler with state management
-- LaTeX compilation system (local + remote)
-- Fixed LaTeX environment
-- Router agent
-- Dependency graph agent
-- Problem solver agent (with compilation loop)
-- Synthesizer agent
-- Main orchestrator
-- API routes
-
-### ⚠️ TODO: LLM Integration
-
-The following agents have scaffolding but need API implementation:
-
-1. **GPTProvider** ([lib/llm/GPTProvider.ts](lib/llm/GPTProvider.ts))
-   - Implement GPT-5 Vision API for PDF transcription
-   - Note: Use new Responses API, not ChatCompletions
-
-2. **ClaudeProvider** ([lib/llm/ClaudeProvider.ts](lib/llm/ClaudeProvider.ts))
-   - Implement Claude Messages API for problem chunking
-
-3. **GeminiProvider** ([lib/llm/GeminiProvider.ts](lib/llm/GeminiProvider.ts))
-   - Add Gemini 2.5 Pro thinking mode support
-
-See [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) for detailed instructions.
-
-## Deployment
-
-### Deploy to Vercel
-
-```bash
-# Push to GitHub
-git push origin main
-
-# In Vercel dashboard:
-# 1. Import GitHub repository
-# 2. Add environment variables (API keys)
-# 3. Deploy
-```
-
-LaTeX compilation will automatically work on Vercel using LaTeX.Online.
-
-For advanced deployment options, see [DEPLOYMENT.md](DEPLOYMENT.md).
-
-## Testing
-
-### Test Local Setup
-```bash
-npm run dev
-# Upload a PDF in the chat interface
-```
-
-### Test Remote LaTeX (Simulates Vercel)
-```bash
-VERCEL=1 npm run dev
-```
-
-## Key Design Decisions
-
-1. **Fixed LaTeX Environment**: All solvers work within predetermined preamble to ensure consistency
-2. **Dependency-Aware Scheduling**: Topological sort enables maximum parallelization
-3. **Compilation Feedback Loop**: LLMs iteratively fix LaTeX syntax errors
-4. **Model-Agnostic Architecture**: Easy to swap LLM providers
-5. **Event-Based State Management**: Scheduler provides real-time observability
-
-## Documentation
-
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Complete system architecture
-- [SYSTEM_DIAGRAM.md](SYSTEM_DIAGRAM.md) - Visual data flow diagrams
-- [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) - Step-by-step implementation guide
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Deployment instructions
+- Start dev server: `npm run dev` (http://localhost:3000)
+- Build: `npm run build`
+- Start production server: `npm run start`
+- Lint code: `npm run lint`
 
 ## Tech Stack
 
