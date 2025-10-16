@@ -18,7 +18,7 @@ export async function geminiGenerate({
 
   const ai = new GoogleGenAI({ apiKey: key });
   if (systemPrompt) {
-    config.systemInstruction = { role: 'model', parts: [{ text: systemPrompt }] };
+    config.systemInstruction = systemPrompt;
   }
 
   const request = {

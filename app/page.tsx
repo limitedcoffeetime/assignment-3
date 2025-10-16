@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
+import MultiAgentView from '@/components/MultiAgentView';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -24,6 +25,7 @@ export default function Home() {
   const [replierInput, setReplierInput] = useState<ReplierInput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [mode, setMode] = useState<'example' | 'murder-game'>('example');
 
   async function send() {
     const content = input.trim();
@@ -35,13 +37,25 @@ export default function Home() {
     setErrorMsg('');
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ history: [...messages, { role: 'user', content }] })
-      });
+      let res, data;
 
-      const data = await res.json();
+      if (mode === 'murder-game') {
+        // Use murder game API
+        res = await fetch('/api/murder-game', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: content })
+        });
+      } else {
+        // Use example orchestrator API
+        res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ history: [...messages, { role: 'user', content }] })
+        });
+      }
+
+      data = await res.json();
 
       if (!res.ok || data?.error) {
         setErrorMsg(data?.error || 'Request failed');
@@ -66,6 +80,14 @@ export default function Home() {
     }
   };
 
+  // If murder game mode, show multi-agent view
+  if (mode === 'murder-game') {
+    return <MultiAgentView onBackToExample={() => setMode('example')} />;
+  }
+
+  // Explicitly handle example mode (TypeScript narrowing workaround)
+  const isExample = mode === 'example';
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
       <h1 className="text-4xl font-semibold text-[#e5ebff] tracking-wide mb-1">
@@ -74,6 +96,22 @@ export default function Home() {
       <div className="text-[#a5b4fc] text-[0.95rem] mb-3">Conversational demo</div>
 
       <div className="flex gap-4 items-center justify-between my-3">
+        <div className="flex gap-2">
+          <Button
+            variant={isExample ? 'default' : 'outline'}
+            onClick={() => setMode('example')}
+            className={isExample ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-white text-slate-900 border-slate-200 hover:bg-slate-50'}
+          >
+            Example
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setMode('murder-game')}
+            className="bg-white text-slate-900 border-slate-200 hover:bg-slate-50"
+          >
+            Murder Game
+          </Button>
+        </div>
         <Button
           variant="outline"
           onClick={() => setDebugOpen(!debugOpen)}
