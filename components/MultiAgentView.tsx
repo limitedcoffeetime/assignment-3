@@ -22,126 +22,193 @@ export default function MultiAgentView({ onBackToExample }: { onBackToExample?: 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [waitingForFinn, setWaitingForFinn] = useState(false);
+  const [finnInput, setFinnInput] = useState('');
+  const [currentStep, setCurrentStep] = useState(0); // 0 = not started, 1-3 = steps
+  const [currentStepData, setCurrentStepData] = useState<any>(null);
 
   // Separate conversation histories for each column
-  const [humanConvo, setHumanConvo] = useState<ConversationMessage[]>([]);
-  const [aliceConvo, setAliceConvo] = useState<ConversationMessage[]>([]);
-  const [bobConvo, setBobConvo] = useState<ConversationMessage[]>([]);
-  const [charlieConvo, setCharlieConvo] = useState<ConversationMessage[]>([]);
+  const [finnConvo, setFinnConvo] = useState<ConversationMessage[]>([]);
+  const [genjiConvo, setGenjiConvo] = useState<ConversationMessage[]>([]);
+  const [hanzoConvo, setHanzoConvo] = useState<ConversationMessage[]>([]);
+  const [kendrickConvo, setKendrickConvo] = useState<ConversationMessage[]>([]);
   const [debugEvents, setDebugEvents] = useState<DebugEvent[]>([]);
 
-  // Parse API response and distribute to appropriate columns
-  const parseResponse = (responseText: string, debugData?: any) => {
-    const lines = responseText.split('\n');
+  // Parse individual message
+  const parseMessage = (msg: any) => {
     const timestamp = Date.now();
+    const conversationMsg: ConversationMessage = {
+      from: msg.from,
+      to: msg.to,
+      message: msg.reasoning ? `${msg.message}\n\n💭 Reasoning: ${msg.reasoning}` : msg.message,
+      timestamp
+    };
 
-    lines.forEach(line => {
-      // Parse messages like "**[Game Master → Alice]:** message"
-      const gmToAgentMatch = line.match(/\*\*\[Game Master → (\w+)\]:\*\* (.+)/);
-      if (gmToAgentMatch) {
-        const [, agent, message] = gmToAgentMatch;
-        const msg: ConversationMessage = {
-          from: 'Game Master',
-          to: agent,
-          message: message.trim(),
-          timestamp
-        };
-
-        if (agent === 'You') setHumanConvo(prev => [...prev, msg]);
-        else if (agent === 'Alice') setAliceConvo(prev => [...prev, msg]);
-        else if (agent === 'Bob') setBobConvo(prev => [...prev, msg]);
-        else if (agent === 'Charlie') setCharlieConvo(prev => [...prev, msg]);
-        return;
-      }
-
-      // Parse agent responses like "**Alice:** "message""
-      const agentRespMatch = line.match(/\*\*(\w+):\*\* "(.+)"/);
-      if (agentRespMatch) {
-        const [, agent, message] = agentRespMatch;
-        const msg: ConversationMessage = {
-          from: agent,
-          to: 'Game Master',
-          message: message.trim(),
-          timestamp
-        };
-
-        // Handle both human player and agents
-        if (agent === 'Player' || agent === 'You') setHumanConvo(prev => [...prev, msg]);
-        else if (agent === 'Alice') setAliceConvo(prev => [...prev, msg]);
-        else if (agent === 'Bob') setBobConvo(prev => [...prev, msg]);
-        else if (agent === 'Charlie') setCharlieConvo(prev => [...prev, msg]);
-        return;
-      }
-
-      // General messages (system announcements, etc.) - show to human
-      if (line.trim() && !line.startsWith('**[') && !line.startsWith('🎮')) {
-        const msg: ConversationMessage = {
-          from: 'Game Master',
-          to: 'You',
-          message: line.trim(),
-          timestamp
-        };
-        setHumanConvo(prev => [...prev, msg]);
-      }
-    });
-
-    // Add debug events if provided
-    if (debugData?.debugEvents) {
-      setDebugEvents(prev => [...prev, ...debugData.debugEvents]);
+    // Route to appropriate column
+    if (msg.agent === 'Finn') {
+      setFinnConvo(prev => [...prev, conversationMsg]);
+    } else if (msg.agent === 'Genji') {
+      setGenjiConvo(prev => [...prev, conversationMsg]);
+    } else if (msg.agent === 'Hanzo') {
+      setHanzoConvo(prev => [...prev, conversationMsg]);
+    } else if (msg.agent === 'Kendrick') {
+      setKendrickConvo(prev => [...prev, conversationMsg]);
     }
   };
 
-  async function send() {
-    const content = input.trim();
-    if (!content) return;
 
-    setInput('');
-    setIsLoading(true);
+  async function startStrategicSharingTest() {
+    // Reset game
+    await fetch('/api/strategic-sharing-step', { method: 'DELETE' });
+
+    // Clear all conversations
+    setFinnConvo([]);
+    setGenjiConvo([]);
+    setHanzoConvo([]);
+    setKendrickConvo([]);
+    setDebugEvents([]);
     setErrorMsg('');
 
-    // Add user message to human conversation
-    setHumanConvo(prev => [...prev, {
-      from: 'You',
-      to: 'Game Master',
-      message: content,
-      timestamp: Date.now()
-    }]);
+    // Start step 1
+    setCurrentStep(1);
+    showStepPrompt(1);
+  }
+
+  function showRevealMessages(reveals: { from: string; to: string; number: number }[]) {
+    // Build reveal message for each agent
+    const agentNames = ['Finn', 'Genji', 'Hanzo', 'Kendrick'];
+
+    agentNames.forEach(agentName => {
+      const revealsToMe = reveals.filter(r => r.to === agentName);
+      let message = '';
+
+      if (revealsToMe.length > 0) {
+        message = revealsToMe.map(r => `${r.from} revealed their number: ${r.number}`).join('. ') + '.';
+      } else {
+        message = 'No one revealed their number to you.';
+      }
+
+      parseMessage({
+        agent: agentName,
+        from: 'Orchestrator',
+        to: agentName,
+        message
+      });
+    });
+  }
+
+  function showStepPrompt(step: number) {
+    const prompts = [
+      '', // step 0
+      'Pick an integer from 1 to 10.',
+      'Choose ONE agent to reveal your number to. (Finn, Genji, Hanzo, or Kendrick)',
+      'What is the sum of all four agents\' numbers?'
+    ];
+
+    // Show orchestrator message to all agents
+    const prompt = prompts[step];
+
+    ['Finn', 'Genji', 'Hanzo', 'Kendrick'].forEach(agentName => {
+      parseMessage({
+        agent: agentName,
+        from: 'Orchestrator',
+        to: agentName,
+        message: prompt
+      });
+    });
+
+    // Wait for Finn's input
+    setWaitingForFinn(true);
+  }
+
+  async function processStep(step: number, finnResponse: string) {
+    setIsLoading(true);
+    setWaitingForFinn(false);
 
     try {
-      const res = await fetch('/api/murder-game', {
+      // Call backend with Finn's response
+      const res = await fetch('/api/strategic-sharing-step', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content })
+        body: JSON.stringify({ step, finnResponse })
       });
 
-      const data = await res.json();
-
-      if (!res.ok || data?.error) {
-        setErrorMsg(data?.error || 'Request failed');
+      if (!res.ok) {
+        setErrorMsg('Request failed');
         setIsLoading(false);
         return;
       }
 
-      if (data.assistantMessage) {
-        parseResponse(data.assistantMessage, data);
-      }
-    } catch (error) {
-      setErrorMsg('Network error occurred');
-    }
+      const data = await res.json();
 
-    setIsLoading(false);
+      // Display all agent responses
+      data.responses.forEach((resp: any) => {
+        const message = resp.reasoning
+          ? `${resp.response}\n\n💭 Reasoning: ${resp.reasoning}`
+          : resp.response;
+
+        parseMessage({
+          agent: resp.agent,
+          from: resp.agent,
+          to: 'Orchestrator',
+          message
+        });
+      });
+
+      // Log to debug column
+      setDebugEvents(prev => [...prev, {
+        type: `Step ${step} Complete`,
+        data: data,
+        timestamp: Date.now()
+      }]);
+
+      setCurrentStepData(data);
+      setIsLoading(false);
+
+      // Move to next step or finish
+      if (step < 3) {
+        setTimeout(() => {
+          setCurrentStep(step + 1);
+
+          // If we just completed step 2, show reveal messages BEFORE step 3 prompt
+          if (step === 2 && data.reveals) {
+            showRevealMessages(data.reveals);
+            // Then show step 3 prompt after a delay
+            setTimeout(() => {
+              showStepPrompt(step + 1);
+            }, 1000);
+          } else {
+            showStepPrompt(step + 1);
+          }
+        }, 500);
+      } else {
+        // Game complete
+        console.log('Game complete!', data);
+        console.log('Correct sum:', data.correctSum);
+      }
+
+    } catch (error) {
+      console.error('Error processing step:', error);
+      setErrorMsg('Failed to process step');
+      setIsLoading(false);
+    }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !isLoading) {
-      send();
-    }
+  const submitFinnResponse = async () => {
+    if (!finnInput.trim() || currentStep === 0) return;
+
+    const response = finnInput.trim();
+    setFinnInput('');
+
+    // Process this step with Finn's response
+    await processStep(currentStep, response);
   };
 
-  const ConversationColumn = ({ title, messages, bgColor }: {
+  const ConversationColumn = ({ title, messages, bgColor, showInput }: {
     title: string;
     messages: ConversationMessage[];
     bgColor: string;
+    showInput?: boolean;
   }) => (
     <div className="flex-1 flex flex-col h-full">
       <div className={`${bgColor} text-white px-3 py-2 font-semibold text-sm rounded-t-lg`}>
@@ -153,7 +220,7 @@ export default function MultiAgentView({ onBackToExample }: { onBackToExample?: 
             <div
               key={i}
               className={`px-2.5 py-2 rounded-lg text-sm ${
-                msg.from === 'Game Master'
+                msg.from === 'Orchestrator'
                   ? 'bg-blue-50 text-slate-900 border border-blue-200'
                   : 'bg-slate-100 text-slate-900 border border-slate-300'
               }`}
@@ -164,13 +231,24 @@ export default function MultiAgentView({ onBackToExample }: { onBackToExample?: 
               <div className="whitespace-pre-wrap">{msg.message}</div>
             </div>
           ))}
-          {isLoading && title === 'You' && (
-            <div className="px-2.5 py-2 rounded-lg text-sm bg-blue-50 border border-blue-200">
-              <div className="inline-flex gap-1.5 items-center">
-                <span className="w-[6px] h-[6px] bg-slate-400 rounded-full animate-pulse"></span>
-                <span className="w-[6px] h-[6px] bg-slate-400 rounded-full animate-pulse delay-100"></span>
-                <span className="w-[6px] h-[6px] bg-slate-400 rounded-full animate-pulse delay-200"></span>
-              </div>
+          {showInput && waitingForFinn && (
+            <div className="mt-2 flex gap-2">
+              <Input
+                type="text"
+                placeholder="Your response..."
+                value={finnInput}
+                onChange={(e) => setFinnInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    submitFinnResponse();
+                  }
+                }}
+                className="flex-1"
+                autoFocus
+              />
+              <Button onClick={submitFinnResponse} size="sm">
+                Send
+              </Button>
             </div>
           )}
         </div>
@@ -180,7 +258,7 @@ export default function MultiAgentView({ onBackToExample }: { onBackToExample?: 
 
   const DebugColumn = () => (
     <div className="flex-1 flex flex-col h-full">
-      <div className="bg-purple-600 text-white px-3 py-2 font-semibold text-sm rounded-t-lg">
+      <div className="bg-slate-700 text-white px-3 py-2 font-semibold text-sm rounded-t-lg">
         🔍 Orchestrator Debug
       </div>
       <Card className="flex-1 rounded-t-none rounded-b-lg p-3 overflow-y-auto bg-slate-900 border border-slate-700 min-h-0 font-mono text-xs">
@@ -205,21 +283,30 @@ export default function MultiAgentView({ onBackToExample }: { onBackToExample?: 
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-semibold text-slate-900 mb-1">
-            Multi-Agent Murder Mystery
+            Strategic Sharing Test
           </h1>
           <div className="text-slate-600 text-sm">
-            Five-column view: Human, Alice, Bob, Charlie, and Orchestrator Debug
+            Watch three agents pick numbers, strategically share information, and guess the sum
           </div>
         </div>
-        {onBackToExample && (
+        <div className="flex gap-2">
           <Button
-            onClick={onBackToExample}
-            variant="outline"
-            className="bg-white text-slate-900 border-slate-200 hover:bg-slate-50"
+            onClick={startStrategicSharingTest}
+            disabled={isLoading}
+            className="bg-green-600 hover:bg-green-700 text-white font-medium px-6"
           >
-            ← Back to Example
+            {isLoading ? 'Running Test...' : '▶ Start Test'}
           </Button>
-        )}
+          {onBackToExample && (
+            <Button
+              onClick={onBackToExample}
+              variant="outline"
+              className="bg-white text-slate-900 border-slate-200 hover:bg-slate-50"
+            >
+              ← Back to Example
+            </Button>
+          )}
+        </div>
       </div>
 
       {errorMsg && (
@@ -231,46 +318,27 @@ export default function MultiAgentView({ onBackToExample }: { onBackToExample?: 
       {/* 5-column layout */}
       <div className="flex-1 flex gap-3 min-h-0">
         <ConversationColumn
-          title="👤 You (Human)"
-          messages={humanConvo}
-          bgColor="bg-blue-600"
+          title="👤 Finn (You)"
+          messages={finnConvo}
+          bgColor="bg-slate-600"
+          showInput={true}
         />
         <ConversationColumn
-          title="🤖 Alice"
-          messages={aliceConvo}
+          title="🥷 Genji"
+          messages={genjiConvo}
           bgColor="bg-green-600"
         />
         <ConversationColumn
-          title="🤖 Bob"
-          messages={bobConvo}
-          bgColor="bg-amber-600"
+          title="🏹 Hanzo"
+          messages={hanzoConvo}
+          bgColor="bg-blue-600"
         />
         <ConversationColumn
-          title="🤖 Charlie"
-          messages={charlieConvo}
-          bgColor="bg-red-600"
+          title="🎤 Kendrick"
+          messages={kendrickConvo}
+          bgColor="bg-purple-600"
         />
         <DebugColumn />
-      </div>
-
-      {/* Input at bottom */}
-      <div className="flex gap-2 items-center mt-3">
-        <Input
-          type="text"
-          placeholder="Type your message as the human player..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={isLoading}
-          className="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-        />
-        <Button
-          onClick={send}
-          disabled={isLoading}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6"
-        >
-          {isLoading ? 'Sending...' : 'Send'}
-        </Button>
       </div>
     </div>
   );
