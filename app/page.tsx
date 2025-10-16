@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import MultiAgentView from '@/components/MultiAgentView';
+import MurderMysteryView from '@/components/MurderMysteryView';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -25,7 +26,7 @@ export default function Home() {
   const [replierInput, setReplierInput] = useState<ReplierInput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [mode, setMode] = useState<'example' | 'murder-game'>('example');
+  const [mode, setMode] = useState<'example' | 'strategic-sharing' | 'murder-mystery'>('example');
 
   async function send() {
     const content = input.trim();
@@ -37,25 +38,14 @@ export default function Home() {
     setErrorMsg('');
 
     try {
-      let res, data;
+      // Use example orchestrator API
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [...messages, { role: 'user', content }] })
+      });
 
-      if (mode === 'murder-game') {
-        // Use murder game API
-        res = await fetch('/api/murder-game', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: content })
-        });
-      } else {
-        // Use example orchestrator API
-        res = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ history: [...messages, { role: 'user', content }] })
-        });
-      }
-
-      data = await res.json();
+      const data = await res.json();
 
       if (!res.ok || data?.error) {
         setErrorMsg(data?.error || 'Request failed');
@@ -80,13 +70,18 @@ export default function Home() {
     }
   };
 
-  // If murder game mode, show multi-agent view
-  if (mode === 'murder-game') {
+  // If strategic sharing mode, show multi-agent view
+  if (mode === 'strategic-sharing') {
     return <MultiAgentView onBackToExample={() => setMode('example')} />;
   }
 
-  // Explicitly handle example mode (TypeScript narrowing workaround)
-  const isExample = mode === 'example';
+  // If murder mystery mode, show murder mystery view
+  if (mode === 'murder-mystery') {
+    return <MurderMysteryView onBackToExample={() => setMode('example')} />;
+  }
+
+  // Render example mode
+  const isExample = true; // At this point we know mode === 'example'
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
@@ -106,10 +101,17 @@ export default function Home() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => setMode('murder-game')}
+            onClick={() => setMode('strategic-sharing')}
             className="bg-white text-slate-900 border-slate-200 hover:bg-slate-50"
           >
-            Murder Game
+            Strategic Sharing
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setMode('murder-mystery')}
+            className="bg-white text-slate-900 border-slate-200 hover:bg-slate-50"
+          >
+            Murder Mystery
           </Button>
         </div>
         <Button
