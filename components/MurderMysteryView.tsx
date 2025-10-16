@@ -19,7 +19,7 @@ interface DebugEvent {
   timestamp: number;
 }
 
-type Phase = 'init' | 'day_0' | string; // day_0, night_1, day_1_discussion, day_1_voting, etc.
+type Phase = 'init' | string; // night_1, day_1_discussion, day_1_voting, etc.
 
 export default function MurderMysteryView({ onBackToExample }: { onBackToExample?: () => void }) {
   const [isLoading, setIsLoading] = useState(false);
@@ -38,6 +38,7 @@ export default function MurderMysteryView({ onBackToExample }: { onBackToExample
 
   const [gameOver, setGameOver] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
+  const [showAIBrains, setShowAIBrains] = useState(true);
 
   // Parse individual message
   const parseMessage = (msg: any) => {
@@ -50,17 +51,32 @@ export default function MurderMysteryView({ onBackToExample }: { onBackToExample
       isPrivate: msg.isPrivate
     };
 
+    // Helper: should this message appear in this agent's column?
+    const shouldShowInColumn = (agentName: string) => {
+      // If message is directly TO this agent, always show it
+      if (msg.to === agentName) return true;
+
+      // If msg.agent specifies this column AND message is not to 'Everyone', show it
+      if (msg.agent === agentName && msg.to !== 'Everyone') return true;
+
+      // For 'Everyone' messages: show in this agent's column ONLY if this agent is NOT the sender
+      // (sender already sees their outbound message, don't duplicate it)
+      if (msg.to === 'Everyone' && msg.agent === agentName && msg.from !== agentName) return true;
+
+      return false;
+    };
+
     // Route to appropriate column
-    if (msg.agent === 'Finn' || msg.to === 'Finn') {
+    if (shouldShowInColumn('Finn')) {
       setFinnConvo(prev => [...prev, conversationMsg]);
     }
-    if (msg.agent === 'Alice' || msg.to === 'Alice') {
+    if (shouldShowInColumn('Alice')) {
       setAliceConvo(prev => [...prev, conversationMsg]);
     }
-    if (msg.agent === 'Bob' || msg.to === 'Bob') {
+    if (shouldShowInColumn('Bob')) {
       setBobConvo(prev => [...prev, conversationMsg]);
     }
-    if (msg.agent === 'Charlie' || msg.to === 'Charlie') {
+    if (shouldShowInColumn('Charlie')) {
       setCharlieConvo(prev => [...prev, conversationMsg]);
     }
   };
@@ -99,9 +115,23 @@ export default function MurderMysteryView({ onBackToExample }: { onBackToExample
       const initData = await initRes.json();
       addDebugEvent('Game Initialized', initData);
 
-      // Start Day 0
-      setCurrentPhase('day_0');
-      showPhasePrompt('day_0');
+      // Show role assignments to ALL players (each in their own column)
+      initData.roleAssignments.forEach((r: any) => {
+        if (r.agent === 'Finn') {
+          setMyRole(r.role);
+        }
+        parseMessage({
+          agent: r.agent,
+          from: 'Game Master',
+          to: r.agent,
+          message: `🔒 Your secret role: ${r.role.toUpperCase()}`,
+          isPrivate: true
+        });
+      });
+
+      // Start Night 1 immediately
+      setCurrentPhase('night_1');
+      showPhasePrompt('night_1');
       setIsLoading(false);
 
     } catch (error) {
@@ -112,27 +142,15 @@ export default function MurderMysteryView({ onBackToExample }: { onBackToExample
   }
 
   function showPhasePrompt(phase: Phase) {
-    if (phase === 'day_0') {
-      // Show role assignment prompt to Finn
-      parseMessage({
-        agent: 'Finn',
-        from: 'Game Master',
-        to: 'Finn',
-        message: 'The Game Master will now assign your role and ask for your introduction...',
-        isPrivate: true
-      });
-
-      setWaitingForFinn(true);
-
-    } else if (phase.startsWith('night_')) {
+    if (phase.startsWith('night_')) {
       // Show night action prompt
       parseMessage({
         agent: 'Finn',
         from: 'Game Master',
         to: 'Finn',
         message: myRole === 'murderer'
-          ? 'NIGHT PHASE: Choose to "stay home" or "visit another player". Specify if you have "intent to kill".'
-          : 'NIGHT PHASE: Choose to "stay home" or "visit another player".'
+          ? 'NIGHT PHASE: Choose your action. You can either "stay at your home" or "visit another player\'s HOME" (Alice, Bob, Charlie). Also specify if you have "intent to kill" (yes/no). IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere!'
+          : 'NIGHT PHASE: Choose your action. You can either "stay at your home" or "visit another player\'s HOME" (Alice, Bob, Charlie). IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere!'
       });
 
       setWaitingForFinn(true);
@@ -184,41 +202,34 @@ export default function MurderMysteryView({ onBackToExample }: { onBackToExample
       const data = await res.json();
       addDebugEvent(`${phase} Complete`, data);
 
-      // Handle Day 0 (introductions)
-      if (phase === 'day_0') {
-        data.responses.forEach((r: any) => {
-          // Show role privately to Finn
-          if (r.agent === 'Finn') {
-            setMyRole(r.role);
-            parseMessage({
-              agent: 'Finn',
-              from: 'Game Master',
-              to: 'Finn',
-              message: `🔒 Your secret role: ${r.role.toUpperCase()}`,
-              isPrivate: true
-            });
-          }
+      // Handle Night phase
+      if (phase.startsWith('night_')) {
+        // Show night actions in debug only (not visible to players)
+        addDebugEvent('Night Actions', data.nightActions);
 
-          // Show introduction publicly
+        // Show night prompts to each agent (skip Finn - they already saw it)
+        data.nightPrompts?.forEach((p: any) => {
+          if (p.agent === 'Finn') return; // Skip human player
           parseMessage({
-            agent: r.agent,
-            from: r.agent,
-            to: 'Everyone',
-            message: r.introduction
+            agent: p.agent,
+            from: 'Game Master',
+            to: p.agent,
+            message: `📋 ${p.prompt}`,
+            isPrivate: true
           });
         });
 
-        // Move to next phase
-        setTimeout(() => {
-          setCurrentPhase(data.nextPhase);
-          showPhasePrompt(data.nextPhase);
-        }, 1000);
-      }
-
-      // Handle Night phase
-      else if (phase.startsWith('night_')) {
-        // Show night actions in debug only (not visible to players)
-        addDebugEvent('Night Actions', data.nightActions);
+        // Show night responses with reasoning (only visible to each agent, skip Finn)
+        data.nightResponses?.forEach((r: any) => {
+          if (r.agent === 'Finn') return; // Skip human player - already shown
+          parseMessage({
+            agent: r.agent,
+            from: r.agent,
+            to: 'Game Master',
+            message: `${r.response}${r.reasoning ? `\n\n💭 Reasoning: ${r.reasoning}` : ''}`,
+            isPrivate: true
+          });
+        });
 
         // Show observations privately to each agent
         data.observations.forEach((obs: any) => {
@@ -256,14 +267,26 @@ export default function MurderMysteryView({ onBackToExample }: { onBackToExample
         if (data.winner) {
           setGameOver(true);
           setWinner(data.winner);
-          ['Finn', 'Alice', 'Bob', 'Charlie'].forEach(agent => {
+
+          // Special message if human player died
+          if (data.humanPlayerDied) {
             parseMessage({
-              agent,
+              agent: 'Finn',
               from: 'Game Master',
-              to: 'Everyone',
-              message: `🎮 GAME OVER! ${data.winner.toUpperCase()} WIN!\n\nReason: ${data.winReason}`
+              to: 'Finn',
+              message: `💀 GAME OVER - You died!\n\n${data.winReason}\n\nThe game will continue among the AI agents, but your story ends here.`,
+              isPrivate: true
             });
-          });
+          } else {
+            ['Finn', 'Alice', 'Bob', 'Charlie'].forEach(agent => {
+              parseMessage({
+                agent,
+                from: 'Game Master',
+                to: 'Everyone',
+                message: `🎮 GAME OVER! ${data.winner.toUpperCase()} WIN!\n\nReason: ${data.winReason}`
+              });
+            });
+          }
         } else {
           // Move to next phase
           setTimeout(() => {
@@ -275,17 +298,38 @@ export default function MurderMysteryView({ onBackToExample }: { onBackToExample
 
       // Handle Day Discussion
       else if (phase.includes('_discussion')) {
-        data.statements.forEach((s: any) => {
-          const message = s.reasoning
-            ? `${s.statement}\n\n💭 Reasoning: ${s.reasoning}`
-            : s.statement;
+        // Show discussion prompts to each agent (skip Finn - they already saw it)
+        data.discussionPrompts?.forEach((p: any) => {
+          if (p.agent === 'Finn') return; // Skip human player
+          parseMessage({
+            agent: p.agent,
+            from: 'Game Master',
+            to: p.agent,
+            message: `📋 ${p.prompt}`,
+            isPrivate: true
+          });
+        });
 
+        // Show each agent's statement WITH reasoning in their own column
+        data.statements.forEach((s: any) => {
+          // For non-Finn agents: Show full statement + reasoning to the agent who made it
+          if (s.agent !== 'Finn') {
+            parseMessage({
+              agent: s.agent,
+              from: s.agent,
+              to: 'Everyone',
+              message: `${s.statement}${s.reasoning ? `\n\n💭 Reasoning: ${s.reasoning}` : ''}`
+            });
+          }
+
+          // Show just the statement (no reasoning) to other agents
           ['Finn', 'Alice', 'Bob', 'Charlie'].forEach(agent => {
+            if (agent === s.agent) return; // Skip sender
             parseMessage({
               agent,
               from: s.agent,
               to: 'Everyone',
-              message
+              message: s.statement
             });
           });
         });
@@ -299,7 +343,31 @@ export default function MurderMysteryView({ onBackToExample }: { onBackToExample
 
       // Handle Day Voting
       else if (phase.includes('_voting')) {
-        // Show votes publicly
+        // Show vote prompts to each agent (skip Finn - they already saw it)
+        data.votePrompts?.forEach((p: any) => {
+          if (p.agent === 'Finn') return; // Skip human player
+          parseMessage({
+            agent: p.agent,
+            from: 'Game Master',
+            to: p.agent,
+            message: `📋 ${p.prompt}`,
+            isPrivate: true
+          });
+        });
+
+        // Show each agent's vote WITH reasoning in their own column (skip Finn - already shown)
+        data.votes.forEach((v: any) => {
+          if (v.agent === 'Finn') return; // Skip human player - already shown
+          parseMessage({
+            agent: v.agent,
+            from: v.agent,
+            to: 'Game Master',
+            message: `Vote: ${v.vote}${v.reasoning ? `\n\n💭 Reasoning: ${v.reasoning}` : ''}`,
+            isPrivate: true
+          });
+        });
+
+        // Show vote summary publicly
         ['Finn', 'Alice', 'Bob', 'Charlie'].forEach(agent => {
           const voteList = data.votes.map((v: any) => `${v.agent} → ${v.vote}`).join(', ');
           parseMessage({
@@ -371,7 +439,7 @@ export default function MurderMysteryView({ onBackToExample }: { onBackToExample
     parseMessage({
       agent: 'Finn',
       from: 'Finn',
-      to: currentPhase === 'day_0' || currentPhase.includes('discussion') ? 'Everyone' : 'Game Master',
+      to: currentPhase.includes('discussion') ? 'Everyone' : 'Game Master',
       message: response
     });
 
@@ -480,6 +548,13 @@ export default function MurderMysteryView({ onBackToExample }: { onBackToExample
           >
             {isLoading ? 'Processing...' : currentPhase === 'init' ? '▶ Start Game' : '🔄 New Game'}
           </Button>
+          <Button
+            onClick={() => setShowAIBrains(!showAIBrains)}
+            variant="outline"
+            className="bg-white text-slate-900 border-slate-200 hover:bg-slate-50"
+          >
+            {showAIBrains ? '👁️ Hide AI Brains' : '👁️ Show AI Brains'}
+          </Button>
           {onBackToExample && (
             <Button
               onClick={onBackToExample}
@@ -505,7 +580,7 @@ export default function MurderMysteryView({ onBackToExample }: { onBackToExample
         </div>
       )}
 
-      {/* 5-column layout */}
+      {/* 5-column layout (or 1-column if AI brains hidden) */}
       <div className="flex-1 flex gap-3 min-h-0">
         <ConversationColumn
           title="👤 Finn (You)"
@@ -514,22 +589,26 @@ export default function MurderMysteryView({ onBackToExample }: { onBackToExample
           showInput={true}
           showRole={true}
         />
-        <ConversationColumn
-          title="🦊 Alice"
-          messages={aliceConvo}
-          bgColor="bg-orange-600"
-        />
-        <ConversationColumn
-          title="🐻 Bob"
-          messages={bobConvo}
-          bgColor="bg-blue-600"
-        />
-        <ConversationColumn
-          title="🦁 Charlie"
-          messages={charlieConvo}
-          bgColor="bg-yellow-600"
-        />
-        <DebugColumn />
+        {showAIBrains && (
+          <>
+            <ConversationColumn
+              title="🦊 Alice"
+              messages={aliceConvo}
+              bgColor="bg-orange-600"
+            />
+            <ConversationColumn
+              title="🐻 Bob"
+              messages={bobConvo}
+              bgColor="bg-blue-600"
+            />
+            <ConversationColumn
+              title="🦁 Charlie"
+              messages={charlieConvo}
+              bgColor="bg-yellow-600"
+            />
+            <DebugColumn />
+          </>
+        )}
       </div>
     </div>
   );

@@ -22,13 +22,20 @@ export async function POST(req: NextRequest) {
       gameInstance = new MurderMysteryOrchestrator();
       gameInstance.setupGame(playerNames, humanPlayerName);
 
+      // Send private role assignments to all players without requiring introductions
+      const roleAssignments = gameInstance.getAgentNames().map(name => ({
+        agent: name,
+        role: gameInstance!.getRole(name)
+      }));
+
       return NextResponse.json({
         success: true,
         message: 'Game initialized',
         gameState: {
           alive: gameInstance.gameState.alive,
-          phase: gameInstance.gameState.phase
-        }
+          phase: 'night_1' // Skip day_0, go straight to night_1
+        },
+        roleAssignments
       });
     }
 
@@ -37,37 +44,6 @@ export async function POST(req: NextRequest) {
         { error: 'Game not initialized' },
         { status: 400 }
       );
-    }
-
-    // Day 0: Role assignment and introductions
-    if (phase === 'day_0') {
-      const humanResponseMap = new Map(Object.entries(humanResponses || {}) as [string, string][]);
-
-      // Send role to each player privately
-      const roleMessages = gameInstance.getAgentNames().map(name => ({
-        agentName: name,
-        message: `Your secret role is: ${gameInstance!.getRole(name).toUpperCase()}. ${
-          gameInstance!.getRole(name) === 'murderer'
-            ? 'You must eliminate all innocents without being caught. You can lie.'
-            : 'You must identify and vote out the murderer. Share what you witness.'
-        }\n\nNow introduce yourself to the group in 1-2 sentences.`
-      }));
-
-      const responses = await gameInstance!.promptAgents(
-        roleMessages,
-        humanResponseMap,
-        false
-      );
-
-      return NextResponse.json({
-        phase: 'day_0',
-        responses: responses.map(r => ({
-          agent: r.agentName,
-          role: gameInstance!.getRole(r.agentName), // For display only
-          introduction: r.response
-        })),
-        nextPhase: 'night_1'
-      });
     }
 
     // Night phase
@@ -79,12 +55,15 @@ export async function POST(req: NextRequest) {
       const nightPrompts = aliveAgents.map(name => {
         const otherPlayers = aliveAgents.filter(n => n !== name);
         const isMurderer = gameInstance!.getRole(name) === 'murderer';
+        const mustHaveIntent = isMurderer && gameInstance!.murdererMustHaveIntent();
 
         return {
           agentName: name,
           message: isMurderer
-            ? `NIGHT PHASE: Choose your action. You can either "stay home" or "visit another player" (${otherPlayers.join(', ')}). Also specify if you have "intent to kill" (yes/no).`
-            : `NIGHT PHASE: Choose your action. You can either "stay home" or "visit another player" (${otherPlayers.join(', ')}).`
+            ? mustHaveIntent
+              ? `⚠️ NIGHT PHASE (INTENT REQUIRED): You did not have intent to kill last night, so you MUST have intent this night. Choose your action: "stay at your home with intent to kill" OR "visit another player's HOME with intent to kill" (${otherPlayers.join(', ')}). IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere!`
+              : `NIGHT PHASE: Choose your action. You can either "stay at your home" or "visit another player's HOME" (${otherPlayers.join(', ')}). IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere! Also specify if you have "intent to kill" (yes/no).`
+            : `NIGHT PHASE: Choose your action. You can either "stay at your home" or "visit another player's HOME" (${otherPlayers.join(', ')}). IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere!`
         };
       });
 
@@ -104,51 +83,95 @@ export async function POST(req: NextRequest) {
       // Resolve night
       const result = gameInstance!.resolveNight(nightActions);
 
-      // Send private observations to each player
+      // Send private observations to each player AND add to their conversation history
       const observationMessages: any[] = [];
       aliveAgents.forEach(name => {
         if (result.deaths.includes(name)) return; // Dead players get no message
 
-        // Figure out which location this player was at
-        const action = nightActions.find(a => a.agentName === name);
-        const locationName = action?.action === 'stay' ? name : action?.target || name;
+        const obs = result.observations.get(name);
+        if (!obs) return;
 
-        const saw = result.observations.get(name) || [];
-        let message = `🏠 You were at ${locationName}'s home. `;
+        // Format home name nicely (alice_home -> Alice's home)
+        const homeOwner = obs.home.replace('_home', '');
+        const homeOwnerCapitalized = homeOwner.charAt(0).toUpperCase() + homeOwner.slice(1);
 
-        if (saw.length > 0) {
-          message += `You saw: ${saw.join(', ')}.`;
+        // Check if player stayed at their own home
+        const stayedHome = homeOwner.toLowerCase() === name.toLowerCase();
+
+        let message = stayedHome
+          ? `🏠 You stayed at your home. `
+          : `🏠 You were at ${homeOwnerCapitalized}'s home. `;
+
+        if (obs.otherPlayers.length > 0) {
+          message += `You saw: ${obs.otherPlayers.join(', ')}.`;
         } else {
           message += `You saw no one else.`;
         }
 
-        // Tell murderer if kill was blocked
-        if (gameInstance!.getRole(name) === 'murderer' && result.murdererBlocked) {
-          message += `\n\n[PRIVATE: Your kill was BLOCKED by 3+ people at the location.]`;
+        // Tell murderer about kill outcome
+        if (gameInstance!.getRole(name) === 'murderer') {
+          const murdererAction = nightActions.find(a => a.agentName === name);
+          if (murdererAction?.intent) {
+            if (result.murdererBlocked) {
+              message += `\n\n[PRIVATE: Since there was more than 1 person present, you did not follow through with your intent to kill.]`;
+            } else if (result.deaths.length > 0) {
+              // Kill succeeded
+              const victim = obs.otherPlayers.find(p => result.deaths.includes(p));
+              if (victim) {
+                message += `\n\n[PRIVATE: Your kill was successful. ${victim} is dead.]`;
+              }
+            }
+          }
         }
+
+        // IMPORTANT: Add this observation to the agent's conversation history
+        // so they know what they saw when asked to make day statements
+        gameInstance!.notifyAgent(name, message);
 
         observationMessages.push({
           agent: name,
-          observation: message
+          observation: message,
+          home: obs.home // Include raw home location for debugging
         });
+      });
+
+      // Broadcast death announcements to all alive agents BEFORE moving to next phase
+      // This ensures agents know who died when making their day statements
+      const aliveAfterNight = gameInstance.gameState.alive;
+      const deathAnnouncement = result.deaths.length > 0
+        ? `💀 ${result.deaths.join(', ')} died last night.`
+        : `No one died last night.`;
+
+      aliveAfterNight.forEach(agentName => {
+        gameInstance!.notifyAgent(agentName, deathAnnouncement);
       });
 
       // Check win condition
       const winCheck = gameInstance!.checkWinCondition();
 
+      // Check if human player (Finn) died - game over for them
+      const humanPlayerDied = result.deaths.includes('Finn');
+
       return NextResponse.json({
         phase,
+        nightPrompts: nightPrompts.map(p => ({ agent: p.agentName, prompt: p.message })),
+        nightResponses: actionResponses.map(r => ({
+          agent: r.agentName,
+          response: r.response,
+          reasoning: r.reasoning
+        })),
         nightActions: nightActions.map(a => ({
           agent: a.agentName,
           action: a.action,
-          target: a.target,
+          targetHome: a.targetHome,
           intent: a.intent
         })),
         deaths: result.deaths,
         observations: observationMessages,
-        winner: winCheck.winner,
-        winReason: winCheck.reason,
-        nextPhase: winCheck.winner ? null : `day_${gameInstance.gameState.dayNumber + 1}_discussion`
+        winner: winCheck.winner || (humanPlayerDied ? 'murderer' : null),
+        winReason: winCheck.winner ? winCheck.reason : (humanPlayerDied ? '💀 Unlucky! You died.' : ''),
+        humanPlayerDied,
+        nextPhase: (winCheck.winner || humanPlayerDied) ? null : `day_${gameInstance.gameState.dayNumber + 1}_discussion`
       });
     }
 
@@ -169,8 +192,21 @@ export async function POST(req: NextRequest) {
         true
       );
 
+      // IMPORTANT: Broadcast all public statements to all agents so they can use this info for voting
+      const publicStatements = statements
+        .map(s => `${s.agentName}: "${s.response}"`)
+        .join('\n');
+
+      aliveAgents.forEach(agentName => {
+        gameInstance!.notifyAgent(
+          agentName,
+          `📢 PUBLIC STATEMENTS FROM EVERYONE:\n${publicStatements}`
+        );
+      });
+
       return NextResponse.json({
         phase,
+        discussionPrompts: statementPrompts.map(p => ({ agent: p.agentName, prompt: p.message })),
         statements: statements.map(s => ({
           agent: s.agentName,
           statement: s.response,
@@ -188,7 +224,7 @@ export async function POST(req: NextRequest) {
       // Each alive player votes
       const votePrompts = aliveAgents.map(name => ({
         agentName: name,
-        message: `VOTING PHASE: Vote to hang one player, or abstain. Available players: ${aliveAgents.filter(n => n !== name).join(', ')}, or say "abstain".`
+        message: `VOTING PHASE: Based on what you've seen last night and what everyone said during the discussion, vote to hang one player, or abstain. Available players: ${aliveAgents.filter(n => n !== name).join(', ')}, or say "abstain".`
       }));
 
       const voteResponses = await gameInstance!.promptAgents(
@@ -204,6 +240,15 @@ export async function POST(req: NextRequest) {
         )
       );
 
+      // Map reasoning back to votes
+      const votesWithReasoning = votes.map(v => {
+        const response = voteResponses.find(r => r.agentName === v.agentName);
+        return {
+          ...v,
+          reasoning: response?.reasoning || ''
+        };
+      });
+
       // Resolve voting
       const voteResult = gameInstance!.resolveVoting(votes);
 
@@ -214,9 +259,11 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         phase,
-        votes: votes.map(v => ({
+        votePrompts: votePrompts.map(p => ({ agent: p.agentName, prompt: p.message })),
+        votes: votesWithReasoning.map(v => ({
           agent: v.agentName,
-          vote: v.vote
+          vote: v.vote,
+          reasoning: v.reasoning
         })),
         voteCounts: Object.fromEntries(voteResult.voteCounts),
         hanged: voteResult.hanged,

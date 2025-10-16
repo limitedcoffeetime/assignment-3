@@ -8,7 +8,7 @@ import { GameOrchestrator, AgentResponse } from './GameOrchestrator';
  */
 
 type Role = 'murderer' | 'innocent';
-type Phase = 'day_0' | 'night' | 'day_discussion' | 'day_voting';
+type Phase = 'night' | 'day_discussion' | 'day_voting';
 
 interface GameState {
   phase: Phase;
@@ -16,14 +16,19 @@ interface GameState {
   roles: Map<string, Role>; // Secret role assignments
   alive: string[];
   dead: string[];
-  nightsSinceKill: number; // For murderer constraint
+  murdererHadIntentLastNight: boolean; // Track if murderer requested intent last night
 }
 
 interface NightAction {
   agentName: string;
   action: 'stay' | 'visit';
-  target?: string; // If visiting, who
+  targetHome: string; // Always a home location (e.g., "alice_home")
   intent?: boolean; // Murderer only: intent to kill
+}
+
+// Helper function to convert player name to home location
+function toHomeName(playerName: string): string {
+  return `${playerName.toLowerCase()}_home`;
 }
 
 interface VoteAction {
@@ -37,12 +42,12 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
   constructor() {
     super('You are the Game Master for a murder mystery game. You interpret player inputs and ensure game rules are followed.');
     this.gameState = {
-      phase: 'day_0',
-      dayNumber: 0,
+      phase: 'night',
+      dayNumber: 1, // Start at day 1 (night_1 will be first night)
       roles: new Map(),
       alive: [],
       dead: [],
-      nightsSinceKill: 0
+      murdererHadIntentLastNight: true // Start true so first night is optional
     };
   }
 
@@ -89,8 +94,29 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
       if (agent.type === 'llm') {
         const role = this.gameState.roles.get(name);
         const prompt = role === 'murderer'
-          ? `You are ${name}, the MURDERER. Your goal is to eliminate all innocents without being caught. You can and should lie strategically. You must attempt to kill at least once every two nights. Use all information available to you.`
-          : `You are ${name}, an INNOCENT. Your goal is to identify and vote out the murderer. Share factual information and look for contradictions in what others say. Use all information available to you.`;
+          ? `You are ${name}, the MURDERER. Your goal is to eliminate all innocents without being caught. You can and should lie strategically. You must have "intent to kill" at least once every two nights - if you don't have intent one night, you'll be forced to have it the next night. Use all information available to you.
+
+GAME RULES YOU MUST KNOW:
+- LOCATIONS: When you "visit" someone, you go to THEIR HOME (a location). They might not be there if they visited elsewhere. Locations are HOMES, not players.
+- KILLING: You can only kill when EXACTLY 2 people are at a location (you + 1 victim) AND you have intent to kill. If > 2 people are present, you cannot kill.
+- You can CHOOSE whether to have intent to kill each night (but must have it at least once every two nights).
+- If you violate this, (i.e you attempt to indicate no intent two nights in a row), then your action will just be forcibly interpreted as having intent to kill.
+- If you indicate a action that doesn't make sense, or doesn't specify a valid action, it will default to staying at your own home with intent to kill.
+- There is only ONE murderer (you). All other players are innocents who cannot knowingly lie.
+
+REASONING STYLE: When providing reasoning, be CONCISE. Focus only on your key decision factors.`
+          : `You are ${name}, an INNOCENT. Your goal is to identify and vote out the murderer. Share factual information and look for contradictions in what others say. Use all information available to you.
+
+GAME RULES YOU MUST KNOW:
+- LOCATIONS: When you "visit" someone, you go to THEIR HOME (a location). They might not be there if they visited elsewhere. Locations are HOMES, not players.
+- If you choose an action that doesn't make sense, it will default to staying at your own home.
+- KILLING: The murderer can only kill when EXACTLY 2 people are at a location (murderer + victim). If > 2 people are present, the murderer does not even attempt to kill.
+- The murderer can CHOOSE whether to kill each night. A night with no deaths does NOT mean there's no murderer.
+- There is only ONE murderer. All other players (including you) are innocents who cannot knowingly lie.
+- DO NOT theorize about multiple murderers or collusion - there is exactly one murderer acting alone.
+- Innocents always tell the truth about what they saw. If statements conflict, someone is lying (the murderer) or locations explain the discrepancy.
+
+REASONING STYLE: When providing reasoning, be CONCISE. Focus only on your key decision factors.`;
 
         agent.instance!.systemPrompt = prompt;
       }
@@ -105,6 +131,13 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
   }
 
   /**
+   * Check if murderer MUST have intent this night (because they didn't last night)
+   */
+  murdererMustHaveIntent(): boolean {
+    return !this.gameState.murdererHadIntentLastNight;
+  }
+
+  /**
    * GAME LOGIC: Night resolution
    *
    * Input: Array of night actions from all players
@@ -112,22 +145,16 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
    */
   resolveNight(actions: NightAction[]): {
     deaths: string[];
-    observations: Map<string, string[]>; // agentName -> list of who they saw
+    observations: Map<string, { home: string; otherPlayers: string[] }>; // agentName -> {home, who they saw}
     murdererBlocked: boolean;
   } {
-    // Build location map
+    // Build location map: home_location -> [players at that home]
     const locations = new Map<string, string[]>();
 
-    actions.forEach(({ agentName, action, target }) => {
-      if (action === 'stay') {
-        // Player stays at their own location
-        if (!locations.has(agentName)) locations.set(agentName, []);
-        locations.get(agentName)!.push(agentName);
-      } else if (action === 'visit' && target) {
-        // Player goes to target's location
-        if (!locations.has(target)) locations.set(target, []);
-        locations.get(target)!.push(agentName);
-      }
+    actions.forEach(({ agentName, targetHome }) => {
+      // Every action now has a targetHome (either their own home or the home they're visiting)
+      if (!locations.has(targetHome)) locations.set(targetHome, []);
+      locations.get(targetHome)!.push(agentName);
     });
 
     // Determine kills
@@ -136,43 +163,37 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
 
     const murdererAction = actions.find(a => this.getRole(a.agentName) === 'murderer');
 
+    // Track if murderer had intent this night
+    this.gameState.murdererHadIntentLastNight = murdererAction?.intent || false;
+
     if (murdererAction && murdererAction.intent) {
       // Murderer has intent to kill
-      const murdererLocation = murdererAction.action === 'stay'
-        ? murdererAction.agentName
-        : murdererAction.target!;
-
-      const peopleAtLocation = locations.get(murdererLocation) || [];
+      const murdererHome = murdererAction.targetHome;
+      const peopleAtLocation = locations.get(murdererHome) || [];
 
       if (peopleAtLocation.length === 2) {
         // Exactly 2 people: murderer + victim
         const victim = peopleAtLocation.find(name => name !== murdererAction.agentName);
         if (victim) {
           deaths.push(victim);
-          this.gameState.nightsSinceKill = 0;
         }
       } else if (peopleAtLocation.length >= 3) {
         // 3+ people: kill blocked
         murdererBlocked = true;
-        this.gameState.nightsSinceKill++;
-      } else {
-        // Murderer alone
-        this.gameState.nightsSinceKill++;
       }
-    } else {
-      // Murderer didn't attempt kill
-      this.gameState.nightsSinceKill++;
     }
 
-    // Build observations (who each player saw)
-    const observations = new Map<string, string[]>();
+    // Build observations (home location + who each player saw)
+    const observations = new Map<string, { home: string; otherPlayers: string[] }>();
 
-    actions.forEach(({ agentName, action, target }) => {
-      const location = action === 'stay' ? agentName : target!;
-      const peopleAtLocation = locations.get(location) || [];
+    actions.forEach(({ agentName, targetHome }) => {
+      const peopleAtLocation = locations.get(targetHome) || [];
 
       // Player sees everyone at their location EXCEPT themselves
-      observations.set(agentName, peopleAtLocation.filter(name => name !== agentName));
+      observations.set(agentName, {
+        home: targetHome,
+        otherPlayers: peopleAtLocation.filter(name => name !== agentName)
+      });
     });
 
     // Update game state
@@ -243,11 +264,6 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
   checkWinCondition(): { winner: 'innocents' | 'murderer' | null; reason: string } {
     const aliveMurderer = this.gameState.alive.find(name => this.getRole(name) === 'murderer');
 
-    // Murderer lost by failing to kill
-    if (this.gameState.nightsSinceKill >= 2) {
-      return { winner: 'innocents', reason: 'Murderer failed to attempt kill for 2 consecutive nights' };
-    }
-
     // Murderer was hanged
     if (!aliveMurderer) {
       return { winner: 'innocents', reason: 'Murderer was hanged' };
@@ -272,29 +288,39 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
    */
   async interpretNightAction(agentName: string, rawInput: string): Promise<NightAction> {
     const isMurderer = this.getRole(agentName) === 'murderer';
+    const mustHaveIntent = isMurderer && this.murdererMustHaveIntent();
     const otherPlayers = this.gameState.alive.filter(n => n !== agentName);
+    const allPlayers = this.gameState.alive; // Include agent's own name for staying home
 
     const prompt = isMurderer
-      ? `The player can either "stay home" or "visit another player". If visiting, they must specify WHO. They must also specify if they have "intent to kill" (yes/no). Available players: ${otherPlayers.join(', ')}.`
-      : `The player can either "stay home" or "visit another player". If visiting, they must specify WHO. Available players: ${otherPlayers.join(', ')}.`;
+      ? mustHaveIntent
+        ? `The player is ${agentName}. They MUST have "intent to kill" this night (they didn't have intent last night). They can either "stay at their home" (use "${agentName}") or "visit another player's HOME" (${otherPlayers.join(', ')}). If they say something that doesn't make sense or doesn't specify a valid action, default to staying at their own home with intent to kill (use "${agentName}").`
+        : `The player is ${agentName}. They can either "stay at their home" (use "${agentName}") or "visit another player's HOME" (${otherPlayers.join(', ')}). They must also specify if they have "intent to kill" (yes/no).`
+      : `The player is ${agentName}. They can either "stay at their home" (use "${agentName}") or "visit another player's HOME" (${otherPlayers.join(', ')}).`;
 
     const schema = {
       type: 'OBJECT',
       properties: {
         action: { type: 'STRING', enum: ['stay', 'visit'] },
-        target: { type: 'STRING', description: 'Name of player to visit (null if staying)' },
+        targetPlayer: { type: 'STRING', description: `Name of player whose home to visit. Use "${agentName}" if staying at own home, or another player's name (${allPlayers.join(', ')}) if visiting.`, enum: allPlayers },
         intent: { type: 'BOOLEAN', description: 'Murderer only: intent to kill' }
       },
-      required: ['action']
+      required: ['action', 'targetPlayer']
     };
 
-    const result = await this.interpretInput<NightAction>(rawInput, prompt, schema);
+    const result = await this.interpretInput<{ action: 'stay' | 'visit'; targetPlayer: string; intent?: boolean }>(rawInput, prompt, schema);
+
+    // Convert player name to home location
+    const targetHome = toHomeName(result.interpreted.targetPlayer);
+
+    // Force intent if murderer must have it
+    const finalIntent = isMurderer ? (mustHaveIntent ? true : (result.interpreted.intent || false)) : false;
 
     return {
       agentName,
       action: result.interpreted.action,
-      target: result.interpreted.target,
-      intent: isMurderer ? result.interpreted.intent : false
+      targetHome,
+      intent: finalIntent
     };
   }
 

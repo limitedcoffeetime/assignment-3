@@ -51,7 +51,7 @@ export class IsolatedAgent {
       const RESPONSE_SCHEMA = {
         type: 'OBJECT',
         properties: {
-          reasoning: { type: 'STRING', description: 'Your internal thought process and rationale' },
+          reasoning: { type: 'STRING', description: 'Your internal thought process and rationale (be concise)' },
           answer: { type: 'STRING', description: 'Your final answer' }
         },
         required: ['reasoning', 'answer']

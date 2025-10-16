@@ -74,6 +74,25 @@ export class GameOrchestrator {
   }
 
   /**
+   * Send an informational message to an agent without requiring a response.
+   * This adds the message to the agent's conversation history.
+   *
+   * @param agentName - The agent to notify
+   * @param message - The informational message
+   */
+  notifyAgent(agentName: string, message: string) {
+    const agent = this.agents.get(agentName);
+    if (!agent || agent.type !== 'llm') {
+      return; // Only LLM agents have conversation history
+    }
+
+    agent.instance!.addToHistory({
+      role: 'user',
+      parts: [{ text: message }]
+    });
+  }
+
+  /**
    * Send a message to a specific agent and get their response
    *
    * @param agentName - The agent to send the message to

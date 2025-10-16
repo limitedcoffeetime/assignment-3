@@ -42,7 +42,7 @@ async function runTests() {
     const result = await game.interpretNightAction('Finn', input);
     console.log(`\nInput: "${input}"`);
     console.log(`  Action: ${result.action}`);
-    console.log(`  Target: ${result.target || 'none'}`);
+    console.log(`  Target Home: ${result.targetHome}`);
     console.log(`  Intent: ${result.intent}`);
   }
 
@@ -64,7 +64,7 @@ async function runTests() {
     const result = await game.interpretNightAction('Alice', input);
     console.log(`\nInput: "${input}"`);
     console.log(`  Action: ${result.action}`);
-    console.log(`  Target: ${result.target || 'none'}`);
+    console.log(`  Target Home: ${result.targetHome}`);
     console.log(`  Intent to kill: ${result.intent}`);
   }
 

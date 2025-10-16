@@ -26,7 +26,7 @@ export default function Home() {
   const [replierInput, setReplierInput] = useState<ReplierInput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [mode, setMode] = useState<'example' | 'strategic-sharing' | 'murder-mystery'>('example');
+  const [mode, setMode] = useState<'example' | 'strategic-sharing' | 'murder-mystery'>('murder-mystery');
 
   async function send() {
     const content = input.trim();

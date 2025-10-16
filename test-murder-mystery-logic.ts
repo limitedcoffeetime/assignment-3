@@ -26,10 +26,10 @@ console.log('  Alice = murderer');
 console.log('  Bob, Charlie, David = innocents\n');
 
 const nightActions1 = [
-  { agentName: 'Alice', action: 'visit' as const, target: 'Bob', intent: true },
-  { agentName: 'Bob', action: 'stay' as const, intent: false },
-  { agentName: 'Charlie', action: 'stay' as const, intent: false },
-  { agentName: 'David', action: 'stay' as const, intent: false }
+  { agentName: 'Alice', action: 'visit' as const, targetHome: 'bob_home', intent: true },
+  { agentName: 'Bob', action: 'stay' as const, targetHome: 'bob_home', intent: false },
+  { agentName: 'Charlie', action: 'stay' as const, targetHome: 'charlie_home', intent: false },
+  { agentName: 'David', action: 'stay' as const, targetHome: 'david_home', intent: false }
 ];
 
 console.log('Night Actions:');
@@ -45,11 +45,11 @@ console.log('  Deaths:', result1.deaths);
 console.log('  Expected: ["Bob"]');
 console.log('  ✓ Match:', JSON.stringify(result1.deaths) === JSON.stringify(['Bob']));
 console.log('\n  Observations:');
-result1.observations.forEach((saw, agent) => {
-  console.log(`    ${agent} saw: ${saw.join(', ') || 'no one'}`);
+result1.observations.forEach((obs, agent) => {
+  console.log(`    ${agent} at ${obs.home} saw: ${obs.otherPlayers.join(', ') || 'no one'}`);
 });
-console.log('  ✓ Alice saw Bob: ', result1.observations.get('Alice')?.includes('Bob'));
-console.log('  ✓ Bob saw Alice: ', result1.observations.get('Bob')?.includes('Alice'));
+console.log('  ✓ Alice saw Bob: ', result1.observations.get('Alice')?.otherPlayers.includes('Bob'));
+console.log('  ✓ Bob saw Alice: ', result1.observations.get('Bob')?.otherPlayers.includes('Alice'));
 console.log('  ✓ Murderer not blocked:', !result1.murdererBlocked);
 console.log('\n');
 
@@ -65,10 +65,10 @@ game2.gameState.roles.set('Charlie', 'innocent');
 game2.gameState.roles.set('David', 'innocent');
 
 const nightActions2 = [
-  { agentName: 'Alice', action: 'visit' as const, target: 'Bob', intent: true },
-  { agentName: 'Bob', action: 'stay' as const, intent: false },
-  { agentName: 'Charlie', action: 'visit' as const, target: 'Bob', intent: false }, // 3rd person!
-  { agentName: 'David', action: 'stay' as const, intent: false }
+  { agentName: 'Alice', action: 'visit' as const, targetHome: 'bob_home', intent: true },
+  { agentName: 'Bob', action: 'stay' as const, targetHome: 'bob_home', intent: false },
+  { agentName: 'Charlie', action: 'visit' as const, targetHome: 'bob_home', intent: false }, // 3rd person!
+  { agentName: 'David', action: 'stay' as const, targetHome: 'david_home', intent: false }
 ];
 
 console.log('Night Actions:');
@@ -87,8 +87,8 @@ console.log('  ✓ Murderer blocked:', result2.murdererBlocked);
 console.log('\n  Observations at Bob\'s location:');
 const bobObservers = ['Alice', 'Bob', 'Charlie'];
 bobObservers.forEach(agent => {
-  const saw = result2.observations.get(agent) || [];
-  console.log(`    ${agent} saw: ${saw.join(', ')}`);
+  const obs = result2.observations.get(agent);
+  console.log(`    ${agent} at ${obs?.home} saw: ${obs?.otherPlayers.join(', ') || 'no one'}`);
 });
 console.log('\n');
 
