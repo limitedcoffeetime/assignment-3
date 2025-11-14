@@ -33,13 +33,11 @@ Day 0 (Introductions) → Night 1 → Day 1 → Night 2 → Day 2 → ...
 ### Night Phase
 
 **All alive players simultaneously choose one action:**
-- **Stay at your home** (remain at your own home/location)
-- **Visit another player's HOME** (go to a specific player's home/location)
-
-**IMPORTANT**: When you visit, you choose a LOCATION (someone's home), NOT the player themselves. The player whose home you visit might not be there if they visited elsewhere!
+- **Stay home** (remain at their own location)
+- **Visit another player's HOME** (go to that player's home)
 
 **How to play:**
-- Each player writes their choice on a piece of paper or whispers it to the Game Master
+- Each player whispers their choice to the Game Master
 - The Murderer additionally indicates whether they have "intent to kill" (yes/no)
 - All players submit their choices before any results are revealed
 
@@ -48,43 +46,43 @@ Day 0 (Introductions) → Night 1 → Day 1 → Night 2 → Day 2 → ...
 The Game Master determines what happens:
 
 1. **Locations**: Group players by their final locations (homes)
-   - Players who stayed home are at their own home
-   - Players who visited are at the HOME they chose to visit (which belongs to another player)
+   - Players who stayed home are at their own location
+   - Players who visited are at the visited player's home
 
 2. **Killing**:
-   - **3 or more people** at the same location → Kill is BLOCKED (safety in numbers)
-   - **2 people** at a location AND the murderer is there with intent → The other person DIES
-   - **1 person** alone at a location → Safe (no one to kill them or be killed by them)
+   - **3 or more people** at the same home → The murder doesn't even attempt to kill, because of witnesses.
+   - **2 people** at a home AND the murderer is there with intent → The other person dies.
+   - **1 person** alone at a home → Safe (no one to kill them or be killed by them)
 
-3. **The Murderer's Constraint**: The murderer must have "intent to kill" at least once every two nights. If they don't have intent one night, they are **automatically forced** to have intent the next night (regardless of what they say). This keeps the game moving forward.
+3. **The Murderer's Constraint**: The murderer must attempt to kill at least once every two nights. (i.e it is illegal to not attempt to kill for two consecutive nights)
 
 **What Players Learn:**
 
 After night resolution, the Game Master tells each player privately:
-- **Which home you were at**: The location you were at (your own home if you stayed, or the home you visited)
-- **Who you saw**: The names of all other people at that same location (this is a FACT)
-- **Who died**: If someone died, announce the name to all players (but NOT their role)
-- **Special notifications**: If the murderer's kill was blocked, tell them privately
+- **Who you saw**: The names of all other people at your location (this is a FACT)
+- **Who died**: If someone died, announce the name to all players (it is implied that every killed person is innocent, because the murderer can't be killed overnight)
+- **Special notifications**: If the murderer's kill was blocked, tell them privately (This is grouped together with the information about who they saw at the home they visited)
 
 ### Day Phase: Discussion
 
-1. **Death Announcement**: The Game Master announces if anyone died last night (name only, no role)
+1. **Death Announcement**: The Game Master announces if anyone died last night (names)
 
 2. **Statements Round**: Each player makes a public statement to the group
    - Players can share what they saw, make accusations, or tell lies
-   - Players speak one at a time in order
-   - Everything said is just "alleged information" - it could be lies!
+   - Players all submit their statements at the same time, and the Game Master announces them all at once. (i.e it is not a 'discussion, players cannot see other peoples statements until the Game Master announces them all at once).
+   - Intuitively, everything said cannot be taken for fact, because the murderer can and should lie.
 
-3. The Game Master should ensure everyone gets a chance to speak
+3. The Game Master should ensure everyone submits a statement.
 
 ### Day Phase: Voting
 
-1. **Voting Round**: Each player votes simultaneously
+AFTER EVERYONE HEARS EACHOTHERS STATEMENTS:
+1. **Voting Round**: Each player reasons about what they know for fact, and what they've heard, andvotes simultaneously
    - Vote to hang one player, OR
    - Abstain (choose not to vote)
 
 **How to vote:**
-- Players write their vote on paper or whisper to the Game Master
+- Players whisper their vote to the Game Master
 - Format: Player name or "abstain"
 
 **Vote Resolution:**
@@ -109,8 +107,7 @@ Understanding what information you have is crucial:
 
 ### FACTS (100% True)
 Things you directly witnessed:
-- Which home (location) you were at during the night
-- Who else was at that same home/location during the night
+- Who was at your location during the night
 - Role reveals when someone is hanged
 
 ### ALLEGED INFO (May Be Lies)
@@ -133,57 +130,56 @@ Things other players told you:
 ## Strategy Tips
 
 ### For Innocents:
-- Share what you actually saw (your facts: which home you were at, who was there)
-- Look for contradictions in what people claim
+- Share what you actually saw (your facts)
+- Look for contradictions in what people claim, especially if you have facts that contradict what they say.
 - Work together to catch the murderer in a lie
-- Be careful about going to someone's home when you might be alone with them
 
 ### For the Murderer:
 - Blend in by acting like an innocent
 - Carefully craft lies that can't be disproven
 - Try to create suspicion between innocents
-- Remember to have "intent to kill" at least every other night (you'll be forced if you forget)
-- Avoid being alone with one other person unless you're ready to kill
+- Remember to kill regularly (at least every other night) technically, you are just forced to attempt to kill every other night at which your only choice becomes to stay home and attempt to kill or visit a home and attempt to kill.
+
 
 ## Game Master Duties
 
 The Game Master must:
-1. **Assign roles** randomly and secretly at the start
-2. **Collect actions** during night and voting phases
+1. **Assign roles** randomly and secretly at the start (Use a RNG to assign roles)
+2. **Collect actions** during night and voting phases (Make sure other players cannot hear/see other players' actions)
 3. **Resolve nights** using the location and killing rules
 4. **Distribute information** carefully:
    - Tell each player only what they witnessed
    - Announce deaths (name only)
    - Reveal roles only when someone is hanged
-5. **Track the intent constraint** for the murderer (force intent if they didn't have it last night)
+5. **Track the killing constraint** for the murderer
 6. **Maintain secrecy** - never reveal information players shouldn't know
 7. **Announce win conditions** when the game ends
 
 ## Example Round
 
-**Night 1 - Players choose locations:**
-- Alice: "I stay at my home"
-- Bob: "I visit Alice's home" (no intent to kill - he's innocent)
-- Charlie: "I visit David's home" (intent to kill - he's the murderer)
-- David: "I stay at my home"
+**Night 1:**
+- Alice stays home
+- Bob visits Alice (no intent to kill - he's innocent)
+- Charlie visits David (intent to kill - he's the murderer)
+- David stays home
 
-**Resolution (Game Master groups by location):**
-- **Alice's home**: Alice, Bob (2 people, safe)
-- **David's home**: David, Charlie (2 people, murderer with intent → David DIES)
+**Resolution:**
+- Alice's location: Alice, Bob (2 people, safe)
+- David's location: David, Charlie (2 people, murderer with intent → David DIES)
 
 **What players learn:**
-- Alice learns: "🏠 You were at Alice's home. You saw: Bob."
-- Bob learns: "🏠 You were at Alice's home. You saw: Alice."
-- Charlie learns: "🏠 You were at David's home. You saw: David. [Private: Your kill was successful.]"
+- Alice learns: "You were at your location. Bob was also there."
+- Bob learns: "You were at Alice's location. Alice was also there."
+- Charlie learns: "You were at David's location. David was also there. [Private: Your kill was successful.]"
 - David: (dead, learns nothing)
 
 **Day 1 Announcement:**
 "Last night, David died."
 
 **Statements:**
-- Alice: "I stayed at my home. Bob was there with me."
-- Bob: "I went to Alice's home. Alice was there. We can confirm each other."
-- Charlie: "I stayed at my home alone all night." (LIE! Charlie was actually at David's home!)
+- Alice: "I stayed home. Bob came to visit me."
+- Bob: "I visited Alice. We can confirm each other."
+- Charlie: "I stayed home alone all night." (LIE!)
 
 **Voting:**
 - Alice votes: Charlie (suspicious he has no alibi)
@@ -193,20 +189,5 @@ The Game Master must:
 
 **Game Master reveals:** "Charlie was the MURDERER. Innocents win!"
 
-## Variations
-
-### Larger Groups
-- For 6+ players, consider adding 2 murderers who know each other's identity
-- Murderers can coordinate kills but still must follow the killing rules
-
-### Shorter Games
-- Require murderer to attempt kill every single night
-- Start with 3 players instead of 4
-
-### Harder for Murderer
-- Announce roles of night death victims immediately
-- Allow innocents to coordinate night actions openly
-
----
 
 **Ready to play?** Gather your friends, choose a Game Master, and see who can survive the night!
