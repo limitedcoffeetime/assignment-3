@@ -1,4 +1,9 @@
 import { GameOrchestrator, AgentResponse } from './GameOrchestrator';
+import { Role, RoleContext } from '../roles/Role';
+import { MurdererRole } from '../roles/Murderer';
+import { InnocentRole } from '../roles/Innocent';
+import { DetectiveRole } from '../roles/Detective';
+import { GameEvent, MoveEvent, KillIntentEvent, InvestigateEvent } from '../game/events';
 
 /**
  * MurderMysteryOrchestrator - Game-specific orchestrator for murder mystery game
@@ -7,13 +12,12 @@ import { GameOrchestrator, AgentResponse } from './GameOrchestrator';
  * All the LLM/agent communication is handled by the base GameOrchestrator class
  */
 
-type Role = 'murderer' | 'innocent';
 type Phase = 'night' | 'day_discussion' | 'day_voting';
 
 interface GameState {
   phase: Phase;
   dayNumber: number;
-  roles: Map<string, Role>; // Secret role assignments
+  roles: Map<string, Role>; // Secret role assignments (Role objects, not strings)
   alive: string[];
   dead: string[];
   murdererHadIntentLastNight: boolean; // Track if murderer requested intent last night
@@ -82,7 +86,7 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
     const murdererIndex = Math.floor(Math.random() * shuffled.length);
 
     shuffled.forEach((name, i) => {
-      this.gameState.roles.set(name, i === murdererIndex ? 'murderer' : 'innocent');
+      this.gameState.roles.set(name, i === murdererIndex ? MurdererRole : InnocentRole);
     });
   }
 
@@ -92,32 +96,16 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
   private updateAgentPrompts() {
     this.agents.forEach((agent, name) => {
       if (agent.type === 'llm') {
-        const role = this.gameState.roles.get(name);
-        const prompt = role === 'murderer'
-          ? `You are ${name}, the MURDERER. Your goal is to eliminate all innocents without being caught. You can and should lie strategically. You must have "intent to kill" at least once every two nights - if you don't have intent one night, you'll be forced to have it the next night. Use all information available to you.
+        const role = this.gameState.roles.get(name)!;
+        const context: RoleContext = {
+          agentName: name,
+          allPlayers: [...this.gameState.alive, ...this.gameState.dead],
+          alivePlayers: this.gameState.alive,
+          deadPlayers: this.gameState.dead,
+          dayNumber: this.gameState.dayNumber
+        };
 
-GAME RULES YOU MUST KNOW:
-- LOCATIONS: When you "visit" someone, you go to THEIR HOME (a location). They might not be there if they visited elsewhere. Locations are HOMES, not players.
-- KILLING: You can only kill when EXACTLY 2 people are at a location (you + 1 victim) AND you have intent to kill. If > 2 people are present, you cannot kill.
-- You can CHOOSE whether to have intent to kill each night (but must have it at least once every two nights).
-- If you violate this, (i.e you attempt to indicate no intent two nights in a row), then your action will just be forcibly interpreted as having intent to kill.
-- If you indicate a action that doesn't make sense, or doesn't specify a valid action, it will default to staying at your own home with intent to kill.
-- There is only ONE murderer (you). All other players are innocents who cannot knowingly lie.
-
-REASONING STYLE: When providing reasoning, be CONCISE. Focus only on your key decision factors.`
-          : `You are ${name}, an INNOCENT. Your goal is to identify and vote out the murderer. Share factual information and look for contradictions in what others say. Use all information available to you.
-
-GAME RULES YOU MUST KNOW:
-- LOCATIONS: When you "visit" someone, you go to THEIR HOME (a location). They might not be there if they visited elsewhere. Locations are HOMES, not players.
-- If you choose an action that doesn't make sense, it will default to staying at your own home.
-- KILLING: The murderer can only kill when EXACTLY 2 people are at a location (murderer + victim). If > 2 people are present, the murderer does not even attempt to kill.
-- The murderer can CHOOSE whether to kill each night. A night with no deaths does NOT mean there's no murderer.
-- There is only ONE murderer. All other players (including you) are innocents who cannot knowingly lie.
-- DO NOT theorize about multiple murderers or collusion - there is exactly one murderer acting alone.
-- Innocents always tell the truth about what they saw. If statements conflict, someone is lying (the murderer) or locations explain the discrepancy.
-
-REASONING STYLE: When providing reasoning, be CONCISE. Focus only on your key decision factors.`;
-
+        const prompt = role.getSystemPrompt(context);
         agent.instance!.systemPrompt = prompt;
       }
     });
@@ -126,7 +114,14 @@ REASONING STYLE: When providing reasoning, be CONCISE. Focus only on your key de
   /**
    * Get a player's secret role (for private messaging)
    */
-  getRole(agentName: string): Role {
+  getRole(agentName: string): string {
+    return this.gameState.roles.get(agentName)!.roleName;
+  }
+
+  /**
+   * Get a player's Role object
+   */
+  getRoleObject(agentName: string): Role {
     return this.gameState.roles.get(agentName)!;
   }
 
@@ -140,60 +135,80 @@ REASONING STYLE: When providing reasoning, be CONCISE. Focus only on your key de
   /**
    * GAME LOGIC: Night resolution
    *
-   * Input: Array of night actions from all players
-   * Output: Who died (if anyone) and what each player saw
+   * Input: Array of arrays of events (one array per player)
+   * Output: Who died (if anyone), what each player saw, and investigation results
    */
-  resolveNight(actions: NightAction[]): {
+  resolveNight(playerEvents: GameEvent[][]): {
     deaths: string[];
     observations: Map<string, { home: string; otherPlayers: string[] }>; // agentName -> {home, who they saw}
     murdererBlocked: boolean;
+    investigations: Map<string, { target: string; result: string }>; // detective -> {target, role}
   } {
-    // Build location map: home_location -> [players at that home]
-    const locations = new Map<string, string[]>();
+    // Flatten all events
+    const allEvents = playerEvents.flat();
 
-    actions.forEach(({ agentName, targetHome }) => {
-      // Every action now has a targetHome (either their own home or the home they're visiting)
+    // Build location map from MOVE events
+    const locations = new Map<string, string[]>();
+    const moveEvents = allEvents.filter(e => e.type === 'MOVE') as MoveEvent[];
+
+    moveEvents.forEach(({ source, targetHome }) => {
       if (!locations.has(targetHome)) locations.set(targetHome, []);
-      locations.get(targetHome)!.push(agentName);
+      locations.get(targetHome)!.push(source);
     });
 
     // Determine kills
     const deaths: string[] = [];
     let murdererBlocked = false;
 
-    const murdererAction = actions.find(a => this.getRole(a.agentName) === 'murderer');
+    // Find KILL_INTENT event
+    const killIntentEvent = allEvents.find(e => e.type === 'KILL_INTENT') as KillIntentEvent | undefined;
 
     // Track if murderer had intent this night
-    this.gameState.murdererHadIntentLastNight = murdererAction?.intent || false;
+    this.gameState.murdererHadIntentLastNight = !!killIntentEvent;
 
-    if (murdererAction && murdererAction.intent) {
-      // Murderer has intent to kill
-      const murdererHome = murdererAction.targetHome;
-      const peopleAtLocation = locations.get(murdererHome) || [];
+    if (killIntentEvent) {
+      // Murderer has intent to kill - find where they are
+      const murdererName = killIntentEvent.source;
+      const murdererMoveEvent = moveEvents.find(e => e.source === murdererName);
 
-      if (peopleAtLocation.length === 2) {
-        // Exactly 2 people: murderer + victim
-        const victim = peopleAtLocation.find(name => name !== murdererAction.agentName);
-        if (victim) {
-          deaths.push(victim);
+      if (murdererMoveEvent) {
+        const murdererHome = murdererMoveEvent.targetHome;
+        const peopleAtLocation = locations.get(murdererHome) || [];
+
+        if (peopleAtLocation.length === 2) {
+          // Exactly 2 people: murderer + victim
+          const victim = peopleAtLocation.find(name => name !== murdererName);
+          if (victim) {
+            deaths.push(victim);
+          }
+        } else if (peopleAtLocation.length >= 3) {
+          // 3+ people: kill blocked
+          murdererBlocked = true;
         }
-      } else if (peopleAtLocation.length >= 3) {
-        // 3+ people: kill blocked
-        murdererBlocked = true;
       }
     }
 
     // Build observations (home location + who each player saw)
     const observations = new Map<string, { home: string; otherPlayers: string[] }>();
 
-    actions.forEach(({ agentName, targetHome }) => {
+    moveEvents.forEach(({ source, targetHome }) => {
       const peopleAtLocation = locations.get(targetHome) || [];
 
       // Player sees everyone at their location EXCEPT themselves
-      observations.set(agentName, {
+      observations.set(source, {
         home: targetHome,
-        otherPlayers: peopleAtLocation.filter(name => name !== agentName)
+        otherPlayers: peopleAtLocation.filter(name => name !== source)
       });
+    });
+
+    // Handle investigations
+    const investigations = new Map<string, { target: string; result: string }>();
+    const investigateEvents = allEvents.filter(e => e.type === 'INVESTIGATE') as InvestigateEvent[];
+
+    investigateEvents.forEach(({ source, target }) => {
+      // Detective learns the target's role
+      const targetRole = this.getRole(target);
+      investigations.set(source, { target, result: targetRole });
     });
 
     // Update game state
@@ -202,7 +217,7 @@ REASONING STYLE: When providing reasoning, be CONCISE. Focus only on your key de
       this.gameState.dead.push(name);
     });
 
-    return { deaths, observations, murdererBlocked };
+    return { deaths, observations, murdererBlocked, investigations };
   }
 
   /**
@@ -285,43 +300,30 @@ REASONING STYLE: When providing reasoning, be CONCISE. Focus only on your key de
 
   /**
    * Use LLM to interpret a player's night action from raw input
+   * Now returns GameEvents instead of NightAction
    */
-  async interpretNightAction(agentName: string, rawInput: string): Promise<NightAction> {
-    const isMurderer = this.getRole(agentName) === 'murderer';
+  async interpretNightAction(agentName: string, rawInput: string): Promise<GameEvent[]> {
+    const role = this.getRoleObject(agentName);
+    const isMurderer = role.roleName === 'murderer';
     const mustHaveIntent = isMurderer && this.murdererMustHaveIntent();
-    const otherPlayers = this.gameState.alive.filter(n => n !== agentName);
-    const allPlayers = this.gameState.alive; // Include agent's own name for staying home
 
-    const prompt = isMurderer
-      ? mustHaveIntent
-        ? `The player is ${agentName}. They MUST have "intent to kill" this night (they didn't have intent last night). They can either "stay at their home" (use "${agentName}") or "visit another player's HOME" (${otherPlayers.join(', ')}). If they say something that doesn't make sense or doesn't specify a valid action, default to staying at their own home with intent to kill (use "${agentName}").`
-        : `The player is ${agentName}. They can either "stay at their home" (use "${agentName}") or "visit another player's HOME" (${otherPlayers.join(', ')}). They must also specify if they have "intent to kill" (yes/no).`
-      : `The player is ${agentName}. They can either "stay at their home" (use "${agentName}") or "visit another player's HOME" (${otherPlayers.join(', ')}).`;
-
-    const schema = {
-      type: 'OBJECT',
-      properties: {
-        action: { type: 'STRING', enum: ['stay', 'visit'] },
-        targetPlayer: { type: 'STRING', description: `Name of player whose home to visit. Use "${agentName}" if staying at own home, or another player's name (${allPlayers.join(', ')}) if visiting.`, enum: allPlayers },
-        intent: { type: 'BOOLEAN', description: 'Murderer only: intent to kill' }
-      },
-      required: ['action', 'targetPlayer']
-    };
-
-    const result = await this.interpretInput<{ action: 'stay' | 'visit'; targetPlayer: string; intent?: boolean }>(rawInput, prompt, schema);
-
-    // Convert player name to home location
-    const targetHome = toHomeName(result.interpreted.targetPlayer);
-
-    // Force intent if murderer must have it
-    const finalIntent = isMurderer ? (mustHaveIntent ? true : (result.interpreted.intent || false)) : false;
-
-    return {
+    const context: RoleContext = {
       agentName,
-      action: result.interpreted.action,
-      targetHome,
-      intent: finalIntent
+      allPlayers: [...this.gameState.alive, ...this.gameState.dead],
+      alivePlayers: this.gameState.alive,
+      deadPlayers: this.gameState.dead,
+      dayNumber: this.gameState.dayNumber,
+      mustHaveIntent // Murderer-specific context
     };
+
+    // Use the role's interpretNightAction method
+    const events = await role.interpretNightAction(
+      rawInput,
+      context,
+      this.interpretInput.bind(this)
+    );
+
+    return events;
   }
 
   /**

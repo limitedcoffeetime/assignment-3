@@ -303,7 +303,7 @@ export default function MultiAgentView({ onBackToExample }: { onBackToExample?: 
               variant="outline"
               className="bg-white text-slate-900 border-slate-200 hover:bg-slate-50"
             >
-              ← Back to Example
+              🔪 Murder Mystery
             </Button>
           )}
         </div>

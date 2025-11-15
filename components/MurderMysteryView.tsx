@@ -21,7 +21,7 @@ interface DebugEvent {
 
 type Phase = 'init' | string; // night_1, day_1_discussion, day_1_voting, etc.
 
-export default function MurderMysteryView({ onBackToExample }: { onBackToExample?: () => void }) {
+export default function MurderMysteryView({ onSwitchMode }: { onSwitchMode?: () => void }) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [currentPhase, setCurrentPhase] = useState<Phase>('init');
@@ -555,13 +555,13 @@ export default function MurderMysteryView({ onBackToExample }: { onBackToExample
           >
             {showAIBrains ? '👁️ Hide AI Brains' : '👁️ Show AI Brains'}
           </Button>
-          {onBackToExample && (
+          {onSwitchMode && (
             <Button
-              onClick={onBackToExample}
+              onClick={onSwitchMode}
               variant="outline"
               className="bg-white text-slate-900 border-slate-200 hover:bg-slate-50"
             >
-              ← Back
+              📊 Strategic Sharing
             </Button>
           )}
         </div>
