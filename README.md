@@ -5,11 +5,11 @@ A multi-agent conversational system built with Next.js, React, TypeScript, and t
 ### Game Modes
 
 **Murder Mystery** (Primary Mode)
-- 4-player social deduction game (Murderer vs Innocents)
+- 4-player social deduction game (Mafia vs Town)
 - Isolated agent contexts - each agent maintains separate conversation history
 - Event-based role system - easily extensible with new roles
 - Phases: Night (actions) → Day (discussion + voting) → repeat
-- Win conditions: Innocents hang murderer OR murderer eliminates all innocents
+- Win conditions: Town hangs murderer OR murderer eliminates all town members
 
 **Strategic Sharing** (Secondary Mode)
 - Multi-step negotiation game with 4 agents
@@ -24,11 +24,12 @@ A multi-agent conversational system built with Next.js, React, TypeScript, and t
 
 **Role System** ([lib/roles/](lib/roles/))
 - Self-contained role definitions with system prompts
+- Separates **alignment** (Town vs Mafia) from **role** (specific abilities)
 - Each role specifies: prompts, action interpretation, event emission
 - Implemented roles:
-  - **Murderer** - Kills when alone with victim + intent
-  - **Innocent** - Gathers information through movement
-  - **Detective** - Investigates players to learn their roles (extensibility demo)
+  - **Murderer** (Mafia) - Kills when alone with victim + intent
+  - **Civilian** (Town) - Default town role, gathers information through movement
+  - **Detective** (Town) - Investigates players to learn their roles (extensibility demo)
 
 **Orchestrator** ([lib/orchestrators/MurderMysteryOrchestrator.ts](lib/orchestrators/MurderMysteryOrchestrator.ts))
 - Manages game state machine and win conditions
@@ -160,9 +161,9 @@ lib/
 │   └── MurderMysteryOrchestrator.ts  # Game-specific logic
 ├── roles/
 │   ├── Role.ts                 # Role interface
-│   ├── Murderer.ts            # Murderer role definition
-│   ├── Innocent.ts            # Innocent role definition
-│   └── Detective.ts           # Detective role (extensibility demo)
+│   ├── Murderer.ts            # Murderer role (Mafia alignment)
+│   ├── Civilian.ts            # Civilian role (Town alignment, default)
+│   └── Detective.ts           # Detective role (Town alignment, extensibility demo)
 ├── game/
 │   └── events.ts              # Event type definitions
 └── gemini.ts                  # Gemini API wrapper

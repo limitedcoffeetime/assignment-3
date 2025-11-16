@@ -22,10 +22,14 @@ export async function POST(req: NextRequest) {
       gameInstance = new MurderMysteryOrchestrator();
       gameInstance.setupGame(playerNames, humanPlayerName);
 
-      // Send private role assignments to all players without requiring introductions
+      // Get role assignment messages
+      const roleMessages = gameInstance.getRoleAssignmentMessages();
+
+      // Send private role assignments to all players with full info
       const roleAssignments = gameInstance.getAgentNames().map(name => ({
         agent: name,
-        role: gameInstance!.getRole(name)
+        role: gameInstance!.getRole(name),
+        message: roleMessages.get(name) || ''
       }));
 
       return NextResponse.json({

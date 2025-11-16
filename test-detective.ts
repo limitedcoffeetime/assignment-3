@@ -6,7 +6,7 @@
 import { MurderMysteryOrchestrator } from './lib/orchestrators/MurderMysteryOrchestrator';
 import { DetectiveRole } from './lib/roles/Detective';
 import { MurdererRole } from './lib/roles/Murderer';
-import { InnocentRole } from './lib/roles/Innocent';
+import { CivilianRole } from './lib/roles/Civilian';
 
 async function testDetective() {
   console.log('🔍 Testing Detective Role Extensibility\n');
@@ -20,9 +20,9 @@ async function testDetective() {
   // MANUALLY assign Detective role to Alice (to test the role)
   orchestrator.gameState.roles.set('Alice', DetectiveRole);
   orchestrator.gameState.roles.set('Bob', MurdererRole);
-  orchestrator.gameState.roles.set('Charlie', InnocentRole);
-  orchestrator.gameState.roles.set('Diana', InnocentRole);
-  orchestrator.gameState.roles.set('Finn', InnocentRole);
+  orchestrator.gameState.roles.set('Charlie', CivilianRole);
+  orchestrator.gameState.roles.set('Diana', CivilianRole);
+  orchestrator.gameState.roles.set('Finn', CivilianRole);
 
   // Update agent prompts after role assignment
   orchestrator['updateAgentPrompts']();

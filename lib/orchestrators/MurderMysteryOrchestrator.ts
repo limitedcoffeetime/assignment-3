@@ -1,7 +1,7 @@
 import { GameOrchestrator, AgentResponse } from './GameOrchestrator';
 import { Role, RoleContext } from '../roles/Role';
 import { MurdererRole } from '../roles/Murderer';
-import { InnocentRole } from '../roles/Innocent';
+import { CivilianRole } from '../roles/Civilian';
 import { DetectiveRole } from '../roles/Detective';
 import { GameEvent, MoveEvent, KillIntentEvent, InvestigateEvent } from '../game/events';
 
@@ -79,14 +79,37 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
   }
 
   /**
-   * GAME LOGIC: Randomly assign 1 murderer, rest innocents
+   * Get role assignment messages to show players at game start
+   */
+  getRoleAssignmentMessages(): Map<string, string> {
+    const messages = new Map<string, string>();
+
+    this.gameState.roles.forEach((role, playerName) => {
+      let message = '';
+
+      if (role.roleName === 'murderer') {
+        message = `🔪 You are the MURDERER\n\nAlignment: Mafia (Evil)\nGoal: Eliminate all town members without being caught\nAbility: Kill players when alone with them (intent required)\nStrategy: Lie, deceive, and manipulate to avoid detection`;
+      } else if (role.roleName === 'civilian') {
+        message = `👤 You are a CIVILIAN\n\nAlignment: Town (Good)\nGoal: Identify and vote out the murderer\nAbility: None (gather information through movement)\nStrategy: Share truthful observations and look for contradictions`;
+      } else if (role.roleName === 'detective') {
+        message = `🔍 You are the DETECTIVE\n\nAlignment: Town (Good)\nGoal: Identify and vote out the murderer\nAbility: Investigate one player each night to learn their role\nStrategy: Use investigations wisely and decide when to reveal findings`;
+      }
+
+      messages.set(playerName, message);
+    });
+
+    return messages;
+  }
+
+  /**
+   * GAME LOGIC: Randomly assign 1 murderer, rest civilians
    */
   private assignRoles(playerNames: string[]) {
     const shuffled = [...playerNames].sort(() => Math.random() - 0.5);
     const murdererIndex = Math.floor(Math.random() * shuffled.length);
 
     shuffled.forEach((name, i) => {
-      this.gameState.roles.set(name, i === murdererIndex ? MurdererRole : InnocentRole);
+      this.gameState.roles.set(name, i === murdererIndex ? MurdererRole : CivilianRole);
     });
   }
 
@@ -284,10 +307,13 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
       return { winner: 'innocents', reason: 'Murderer was hanged' };
     }
 
-    // All innocents dead
-    const aliveInnocents = this.gameState.alive.filter(name => this.getRole(name) === 'innocent');
-    if (aliveInnocents.length === 0) {
-      return { winner: 'murderer', reason: 'All innocents are dead' };
+    // All town members dead
+    const aliveTown = this.gameState.alive.filter(name => {
+      const role = this.getRoleObject(name);
+      return role.alignment === 'town';
+    });
+    if (aliveTown.length === 0) {
+      return { winner: 'murderer', reason: 'All town members are dead' };
     }
 
     // 1v1 situation

@@ -124,7 +124,7 @@ const responses = await orchestrator.promptAgents(
 {
   phase: Phase;           // 'day-0' | 'night' | 'day' | 'game-over'
   dayNumber: number;
-  roles: Map<string, Role>; // Role objects (MurdererRole, InnocentRole, DetectiveRole)
+  roles: Map<string, Role>; // Role objects (MurdererRole, CivilianRole, DetectiveRole)
   alive: string[];
   dead: string[];
   murdererHadIntentLastNight: boolean;
@@ -149,7 +149,7 @@ const context: RoleContext = {
   // ... other context
 };
 agent.instance!.systemPrompt = role.getSystemPrompt(context);
-// Role object generates appropriate prompt (murderer vs innocent vs detective)
+// Role object generates appropriate prompt (murderer vs civilian vs detective)
 ```
 
 **Characteristics**:
@@ -166,8 +166,8 @@ agent.instance!.systemPrompt = role.getSystemPrompt(context);
 
 ```typescript
 export interface Role {
-  roleName: string;           // 'murderer' | 'innocent' | 'detective'
-  alignment: 'town' | 'mafia'; // Town (innocents) vs Mafia (murderer)
+  roleName: string;           // 'murderer' | 'civilian' | 'detective'
+  alignment: 'town' | 'mafia'; // Town (civilians, detective) vs Mafia (murderer)
 
   // Generate system prompt for this role
   getSystemPrompt(context: RoleContext): string;
@@ -201,9 +201,9 @@ createInvestigateEvent(investigator: string, target: string): InvestigateEvent
 ```
 
 **Role Implementations**:
-- [lib/roles/Murderer.ts](lib/roles/Murderer.ts) - Emits MOVE + KILL_INTENT events
-- [lib/roles/Innocent.ts](lib/roles/Innocent.ts) - Emits MOVE event only
-- [lib/roles/Detective.ts](lib/roles/Detective.ts) - Emits MOVE + INVESTIGATE events (extensibility demo)
+- [lib/roles/Murderer.ts](lib/roles/Murderer.ts) - Emits MOVE + KILL_INTENT events (Mafia alignment)
+- [lib/roles/Civilian.ts](lib/roles/Civilian.ts) - Emits MOVE event only (Town alignment, default)
+- [lib/roles/Detective.ts](lib/roles/Detective.ts) - Emits MOVE + INVESTIGATE events (Town alignment, extensibility demo)
 
 **Event Flow Example**:
 
@@ -400,7 +400,7 @@ npx tsx test-game.ts
 ```
 
 Features:
-- ✅ Colored terminal output (red=murderer, green=innocent)
+- ✅ Colored terminal output (red=murderer, green=town)
 - ✅ Omniscient view of all secret roles
 - ✅ Full game simulation (night/discussion/voting)
 - ✅ Agent reasoning display (💭 symbol)
@@ -561,16 +561,17 @@ Uses Shadcn UI components ([components/ui/](components/ui/)):
 
 ### Murder Mystery Mode
 4-player social deduction game with event-based role system and isolated agent contexts. Full rules in [GAME_RULES.md](GAME_RULES.md):
-- Roles: 1 Murderer, 3 Innocents (Detective available as extensibility demo)
+- Alignments: Town vs Mafia
+- Roles: 1 Murderer (Mafia), 3 Town (Civilians by default, Detective available for extensibility demo)
 - Event System: Roles emit typed events (MOVE, KILL_INTENT, INVESTIGATE) → Orchestrator resolves deterministically
 - Phases: Day 0 → Night (actions) → Day (discussion + voting) → repeat
 - Night actions: Stay home or visit another player
 - Killing: 2 people at location + murderer with intent = kill; 3+ people = safe
-- Win: Innocents hang murderer OR murderer kills all innocents
+- Win: Town hangs murderer OR murderer eliminates all town members
 
 Implementation:
 - Orchestrator: [lib/orchestrators/MurderMysteryOrchestrator.ts](lib/orchestrators/MurderMysteryOrchestrator.ts)
-- Roles: [lib/roles/](lib/roles/) - Murderer, Innocent, Detective
+- Roles: [lib/roles/](lib/roles/) - Murderer, Civilian, Detective
 - Events: [lib/game/events.ts](lib/game/events.ts)
 - Testing: [test-game.ts](test-game.ts) (no UI needed), [test-detective.ts](test-detective.ts)
 
