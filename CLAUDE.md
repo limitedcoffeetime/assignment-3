@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is Assignment 3 for 6.S061: a multi-agent conversational system demonstrating different orchestration patterns. Built with Next.js 15 App Router, React 19, TypeScript, Tailwind CSS, and the Google Gemini API.
 
 The system implements two distinct multi-agent patterns:
-- **Murder Mystery Mode**: Dynamic agents with isolated contexts - demonstrates flexible game orchestrator pattern
+- **Murder Mystery Mode**: Event-based role system with dynamic agents and isolated contexts - demonstrates flexible game orchestrator pattern with extensible roles
 - **Strategic Sharing Mode**: Hybrid pattern with fixed agents but isolated contexts - demonstrates step-based orchestration
 
 ## Commands
@@ -124,7 +124,7 @@ const responses = await orchestrator.promptAgents(
 {
   phase: Phase;           // 'day-0' | 'night' | 'day' | 'game-over'
   dayNumber: number;
-  roles: Map<string, Role>; // 'murderer' | 'innocent'
+  roles: Map<string, Role>; // Role objects (MurdererRole, InnocentRole, DetectiveRole)
   alive: string[];
   dead: string[];
   murdererHadIntentLastNight: boolean;
@@ -140,10 +140,16 @@ const responses = await orchestrator.promptAgents(
 
 **Dynamic System Prompt Updates**:
 ```typescript
-// After role assignment
-agent.instance!.systemPrompt = role === 'murderer'
-  ? murdererPrompt  // Includes secret role info
-  : innocentPrompt; // Generic innocent perspective
+// After role assignment - using Role object's getSystemPrompt method
+const role = this.gameState.roles.get(playerName)!;
+const context: RoleContext = {
+  agentName: playerName,
+  allPlayers: this.gameState.alive,
+  alivePlayers: this.gameState.alive,
+  // ... other context
+};
+agent.instance!.systemPrompt = role.getSystemPrompt(context);
+// Role object generates appropriate prompt (murderer vs innocent vs detective)
 ```
 
 **Characteristics**:
@@ -151,6 +157,126 @@ agent.instance!.systemPrompt = role === 'murderer'
 - Role assignment randomized at runtime
 - System prompts updated dynamically based on game state
 - Game logic is rule-based, NOT LLM-determined
+
+### Event-Based Role System
+
+**Core Architecture**: Roles emit events, orchestrator resolves deterministically
+
+**Role Interface**: [lib/roles/Role.ts](lib/roles/Role.ts)
+
+```typescript
+export interface Role {
+  roleName: string;           // 'murderer' | 'innocent' | 'detective'
+  alignment: 'town' | 'mafia'; // Town (innocents) vs Mafia (murderer)
+
+  // Generate system prompt for this role
+  getSystemPrompt(context: RoleContext): string;
+
+  // Generate night prompt for this role
+  getNightPrompt(context: RoleContext): string;
+
+  // Interpret player's raw input into GameEvent[]
+  interpretNightAction(
+    rawInput: string,
+    context: RoleContext,
+    interpretFn: <T>(rawInput: string, prompt: string, schema: any) => Promise<T>
+  ): Promise<GameEvent[]>;
+}
+```
+
+**Event Types**: [lib/game/events.ts](lib/game/events.ts)
+
+```typescript
+type GameEvent =
+  | MoveEvent       // Player moves to a location
+  | KillIntentEvent // Murderer has intent to kill
+  | InvestigateEvent // Detective investigates a player
+  | ProtectEvent    // Doctor protects a player (extensibility demo)
+  | BlockEvent;     // Generic blocking event
+
+// Factory functions
+createMoveEvent(player: string, location: string): MoveEvent
+createKillIntentEvent(player: string): KillIntentEvent
+createInvestigateEvent(investigator: string, target: string): InvestigateEvent
+```
+
+**Role Implementations**:
+- [lib/roles/Murderer.ts](lib/roles/Murderer.ts) - Emits MOVE + KILL_INTENT events
+- [lib/roles/Innocent.ts](lib/roles/Innocent.ts) - Emits MOVE event only
+- [lib/roles/Detective.ts](lib/roles/Detective.ts) - Emits MOVE + INVESTIGATE events (extensibility demo)
+
+**Event Flow Example**:
+
+```typescript
+// 1. Agent responds with raw text
+const response = await agent.respond('Where do you go tonight?');
+// → "I'll visit Alice to investigate her"
+
+// 2. Role interprets raw input into events
+const role = gameInstance.getRole(agentName);
+const events = await role.interpretNightAction(rawInput, context, interpretFn);
+// → [
+//     { type: 'MOVE', player: 'Bob', location: "Alice's home" },
+//     { type: 'INVESTIGATE', investigator: 'Bob', target: 'Alice' }
+//   ]
+
+// 3. Orchestrator collects all events
+const allPlayerEvents: GameEvent[][] = await Promise.all(
+  agents.map(agent => interpretNightActionForAgent(agent))
+);
+
+// 4. Orchestrator resolves events deterministically
+const result = gameInstance.resolveNight(allPlayerEvents);
+// → Applies game rules: murder resolution, investigation resolution, etc.
+```
+
+**Key Principles**:
+- ✅ **Separation of Concerns**: Roles define behavior, orchestrator enforces rules
+- ✅ **Type Safety**: All events are strongly typed via TypeScript
+- ✅ **Extensibility**: Adding new roles requires ~90 lines of code
+- ✅ **Deterministic Resolution**: Game logic is rule-based, NOT LLM-based
+- ✅ **LLM for Intent, Code for Logic**: Use LLMs for selection/generation, code for game mechanics
+
+**Adding New Roles**:
+
+```typescript
+// lib/roles/Doctor.ts
+import { Role, RoleContext, toHomeName } from './Role';
+import { GameEvent, createMoveEvent, createProtectEvent } from '../game/events';
+
+export const DoctorRole: Role = {
+  roleName: 'doctor',
+  alignment: 'town',
+
+  getSystemPrompt(context: RoleContext): string {
+    return `You are ${context.agentName}, the DOCTOR. You can protect one player each night...`;
+  },
+
+  getNightPrompt(context: RoleContext): string {
+    const others = context.alivePlayers.filter(p => p !== context.agentName);
+    return `Who do you want to protect tonight? Choose: ${others.join(', ')}`;
+  },
+
+  async interpretNightAction(rawInput, context, interpretFn) {
+    const result = await interpretFn<{ target: string }>(
+      rawInput,
+      `Choose a player to protect: ${context.alivePlayers.join(', ')}`,
+      {
+        type: 'OBJECT',
+        properties: { target: { type: 'STRING', enum: context.alivePlayers } },
+        required: ['target']
+      }
+    );
+
+    return [
+      createMoveEvent(context.agentName, toHomeName(context.agentName)), // Stay home
+      createProtectEvent(context.agentName, result.target)
+    ];
+  }
+};
+```
+
+Then update orchestrator to handle PROTECT events in `resolveNight()`.
 
 ### Information Flow Architecture
 
@@ -244,7 +370,7 @@ const geminiContents = messages.map(msg => ({
 ### Frontend Architecture
 
 **Routes**:
-- [app/api/murder-game/route.ts](app/api/murder-game/route.ts) - Murder Mystery (isolated context)
+- [app/api/murder-mystery/route.ts](app/api/murder-mystery/route.ts) - Murder Mystery (isolated context, event-based)
 - [app/api/strategic-sharing-step/route.ts](app/api/strategic-sharing-step/route.ts) - Strategic Sharing (step-based)
 
 **Components**:
@@ -262,8 +388,37 @@ const geminiContents = messages.map(msg => ({
 - Module resolution: `bundler` (Next.js default)
 - Target: ES2017
 - Strict mode enabled
+- Test files excluded from build: `test-*.ts` (run via `npx tsx`)
 
 ## Implementation Guidelines
+
+### Testing Without UI
+
+**Test Harness**: [test-game.ts](test-game.ts)
+```bash
+npx tsx test-game.ts
+```
+
+Features:
+- ✅ Colored terminal output (red=murderer, green=innocent)
+- ✅ Omniscient view of all secret roles
+- ✅ Full game simulation (night/discussion/voting)
+- ✅ Agent reasoning display (💭 symbol)
+- ✅ Action interpretation display
+- ✅ Game state tracking
+
+**Detective Role Demo**: [test-detective.ts](test-detective.ts)
+```bash
+npx tsx test-detective.ts
+```
+
+Demonstrates how easily new roles can be added (~90 lines of code).
+
+**When to Use**:
+- Debugging game logic without browser overhead
+- Rapid iteration on role behavior
+- Verifying event resolution logic
+- Testing win conditions
 
 ### Adding New Agents
 
@@ -387,11 +542,13 @@ Uses Shadcn UI components ([components/ui/](components/ui/)):
 
 ### Key Design Principles
 
-1. **Isolated Contexts**: All agents use `IsolatedAgent` with separate conversation histories
-2. **LLM vs Deterministic Logic**: Use LLMs for selection/generation, deterministic code for game rules
-3. **Privacy Control**: Use `notifyAgent()` for private info, `broadcastToAgents()` for public info
-4. **Parallel Processing**: Use `promptAgents()` with `Promise.all()` for simultaneous agent responses
-5. **Human Integration**: Register human agents as `'human'` type, provide responses via `humanResponses` map
+1. **Event-Driven Architecture**: Roles emit events, orchestrator resolves deterministically
+2. **Isolated Contexts**: All agents use `IsolatedAgent` with separate conversation histories
+3. **LLM vs Deterministic Logic**: Use LLMs for selection/generation, deterministic code for game rules
+4. **Privacy Control**: Use `notifyAgent()` for private info, `broadcastToAgents()` for public info
+5. **Parallel Processing**: Use `promptAgents()` with `Promise.all()` for simultaneous agent responses
+6. **Human Integration**: Register human agents as `'human'` type, provide responses via `humanResponses` map
+7. **Type Safety**: Full TypeScript coverage with strongly-typed events and role interfaces
 
 ## Project Context
 
@@ -403,14 +560,19 @@ Uses Shadcn UI components ([components/ui/](components/ui/)):
 ## Game Modes
 
 ### Murder Mystery Mode
-4-player social deduction game with isolated agent contexts. Full rules in [GAME_RULES.md](GAME_RULES.md):
-- Roles: 1 Murderer, 3 Innocents
+4-player social deduction game with event-based role system and isolated agent contexts. Full rules in [GAME_RULES.md](GAME_RULES.md):
+- Roles: 1 Murderer, 3 Innocents (Detective available as extensibility demo)
+- Event System: Roles emit typed events (MOVE, KILL_INTENT, INVESTIGATE) → Orchestrator resolves deterministically
 - Phases: Day 0 → Night (actions) → Day (discussion + voting) → repeat
 - Night actions: Stay home or visit another player
 - Killing: 2 people at location + murderer with intent = kill; 3+ people = safe
 - Win: Innocents hang murderer OR murderer kills all innocents
 
-Implementation: [lib/orchestrators/MurderMysteryOrchestrator.ts](lib/orchestrators/MurderMysteryOrchestrator.ts)
+Implementation:
+- Orchestrator: [lib/orchestrators/MurderMysteryOrchestrator.ts](lib/orchestrators/MurderMysteryOrchestrator.ts)
+- Roles: [lib/roles/](lib/roles/) - Murderer, Innocent, Detective
+- Events: [lib/game/events.ts](lib/game/events.ts)
+- Testing: [test-game.ts](test-game.ts) (no UI needed), [test-detective.ts](test-detective.ts)
 
 ### Strategic Sharing Mode
 Multi-step negotiation game with 4 agents (Finn, Genji, Hanzo, Kendrick) sharing information strategically. See [app/api/strategic-sharing-step/route.ts](app/api/strategic-sharing-step/route.ts).
