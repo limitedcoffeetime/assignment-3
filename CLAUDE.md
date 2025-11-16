@@ -124,7 +124,7 @@ const responses = await orchestrator.promptAgents(
 {
   phase: Phase;           // 'day-0' | 'night' | 'day' | 'game-over'
   dayNumber: number;
-  roles: Map<string, Role>; // Role objects (MurdererRole, CivilianRole, DetectiveRole)
+  roles: Map<string, Role>; // Role objects (MurdererRole, CivilianRole in normal games; DetectiveRole available but not auto-assigned)
   alive: string[];
   dead: string[];
   murdererHadIntentLastNight: boolean;
@@ -166,7 +166,7 @@ agent.instance!.systemPrompt = role.getSystemPrompt(context);
 
 ```typescript
 export interface Role {
-  roleName: string;           // 'murderer' | 'civilian' | 'detective'
+  roleName: string;           // 'murderer' | 'civilian' (used in normal games) | 'detective' (manual testing only)
   alignment: 'town' | 'mafia'; // Town (civilians, detective) vs Mafia (murderer)
 
   // Generate system prompt for this role
@@ -201,9 +201,13 @@ createInvestigateEvent(investigator: string, target: string): InvestigateEvent
 ```
 
 **Role Implementations**:
-- [lib/roles/Murderer.ts](lib/roles/Murderer.ts) - Emits MOVE + KILL_INTENT events (Mafia alignment)
-- [lib/roles/Civilian.ts](lib/roles/Civilian.ts) - Emits MOVE event only (Town alignment, default)
-- [lib/roles/Detective.ts](lib/roles/Detective.ts) - Emits MOVE + INVESTIGATE events (Town alignment, extensibility demo)
+
+Roles used in normal gameplay:
+- [lib/roles/Murderer.ts](lib/roles/Murderer.ts) - Emits MOVE + KILL_INTENT events (Mafia alignment, always 1 per game)
+- [lib/roles/Civilian.ts](lib/roles/Civilian.ts) - Emits MOVE event only (Town alignment, default for all non-murderer players)
+
+Roles implemented but NOT assigned in normal games:
+- [lib/roles/Detective.ts](lib/roles/Detective.ts) - Emits MOVE + INVESTIGATE events (Town alignment, **only for manual testing via [test-detective.ts](test-detective.ts)**)
 
 **Event Flow Example**:
 
@@ -239,8 +243,10 @@ const result = gameInstance.resolveNight(allPlayerEvents);
 
 **Adding New Roles**:
 
+Example of how to add a new role (Doctor role shown below is **NOT implemented**, just an example):
+
 ```typescript
-// lib/roles/Doctor.ts
+// lib/roles/Doctor.ts (EXAMPLE ONLY - not actually implemented)
 import { Role, RoleContext, toHomeName } from './Role';
 import { GameEvent, createMoveEvent, createProtectEvent } from '../game/events';
 
@@ -412,7 +418,7 @@ Features:
 npx tsx test-detective.ts
 ```
 
-Demonstrates how easily new roles can be added (~90 lines of code).
+Demonstrates extensibility by manually assigning the Detective role. **Note**: Detective is NOT assigned in normal games - this test shows how to add custom roles (~90 lines of code).
 
 **When to Use**:
 - Debugging game logic without browser overhead
@@ -562,7 +568,8 @@ Uses Shadcn UI components ([components/ui/](components/ui/)):
 ### Murder Mystery Mode
 4-player social deduction game with event-based role system and isolated agent contexts. Full rules in [GAME_RULES.md](GAME_RULES.md):
 - Alignments: Town vs Mafia
-- Roles: 1 Murderer (Mafia), 3 Town (Civilians by default, Detective available for extensibility demo)
+- Roles in normal gameplay: 1 Murderer (Mafia), 3 Civilians (Town)
+- Additional roles available: Detective (implemented but **NOT assigned in normal games**, only for manual testing)
 - Event System: Roles emit typed events (MOVE, KILL_INTENT, INVESTIGATE) → Orchestrator resolves deterministically
 - Phases: Day 0 → Night (actions) → Day (discussion + voting) → repeat
 - Night actions: Stay home or visit another player
@@ -571,9 +578,10 @@ Uses Shadcn UI components ([components/ui/](components/ui/)):
 
 Implementation:
 - Orchestrator: [lib/orchestrators/MurderMysteryOrchestrator.ts](lib/orchestrators/MurderMysteryOrchestrator.ts)
-- Roles: [lib/roles/](lib/roles/) - Murderer, Civilian, Detective
+- Roles used in gameplay: [lib/roles/Murderer.ts](lib/roles/Murderer.ts), [lib/roles/Civilian.ts](lib/roles/Civilian.ts)
+- Additional roles (for extensibility testing): [lib/roles/Detective.ts](lib/roles/Detective.ts)
 - Events: [lib/game/events.ts](lib/game/events.ts)
-- Testing: [test-game.ts](test-game.ts) (no UI needed), [test-detective.ts](test-detective.ts)
+- Testing: [test-game.ts](test-game.ts) (normal gameplay, no UI), [test-detective.ts](test-detective.ts) (manual Detective assignment demo)
 
 ### Strategic Sharing Mode
 Multi-step negotiation game with 4 agents (Finn, Genji, Hanzo, Kendrick) sharing information strategically. See [app/api/strategic-sharing-step/route.ts](app/api/strategic-sharing-step/route.ts).

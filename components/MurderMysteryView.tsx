@@ -21,7 +21,13 @@ interface DebugEvent {
 
 type Phase = 'init' | string; // night_1, day_1_discussion, day_1_voting, etc.
 
-export default function MurderMysteryView({ onSwitchMode }: { onSwitchMode?: () => void }) {
+export default function MurderMysteryView({
+  onSwitchMode,
+  enabledRoles
+}: {
+  onSwitchMode?: () => void;
+  enabledRoles?: { detective: boolean; doctor: boolean };
+}) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [currentPhase, setCurrentPhase] = useState<Phase>('init');
@@ -108,7 +114,8 @@ export default function MurderMysteryView({ onSwitchMode }: { onSwitchMode?: () 
         body: JSON.stringify({
           action: 'init',
           playerNames: ['Alice', 'Bob', 'Charlie', 'Finn'],
-          humanPlayerName: 'Finn'
+          humanPlayerName: 'Finn',
+          enabledRoles: enabledRoles || { detective: false, doctor: false }
         })
       });
 
@@ -143,14 +150,25 @@ export default function MurderMysteryView({ onSwitchMode }: { onSwitchMode?: () 
 
   function showPhasePrompt(phase: Phase) {
     if (phase.startsWith('night_')) {
-      // Show night action prompt
+      // Show night action prompt based on role
+      let nightPrompt = '';
+
+      if (myRole === 'murderer') {
+        nightPrompt = 'NIGHT PHASE: Choose your action. You can either "stay at your home" or "visit another player\'s HOME" (Alice, Bob, Charlie). Also specify if you have "intent to kill" (yes/no). IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere!';
+      } else if (myRole === 'detective') {
+        nightPrompt = 'NIGHT PHASE: Who do you want to investigate tonight? Choose one player: Alice, Bob, Charlie';
+      } else if (myRole === 'doctor') {
+        nightPrompt = 'NIGHT PHASE: Who do you want to protect tonight? Choose one player (you can protect yourself): Alice, Bob, Charlie, Finn';
+      } else {
+        // Civilian
+        nightPrompt = 'NIGHT PHASE: Choose your action. You can either "stay at your home" or "visit another player\'s HOME" (Alice, Bob, Charlie). IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere!';
+      }
+
       parseMessage({
         agent: 'Finn',
         from: 'Game Master',
         to: 'Finn',
-        message: myRole === 'murderer'
-          ? 'NIGHT PHASE: Choose your action. You can either "stay at your home" or "visit another player\'s HOME" (Alice, Bob, Charlie). Also specify if you have "intent to kill" (yes/no). IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere!'
-          : 'NIGHT PHASE: Choose your action. You can either "stay at your home" or "visit another player\'s HOME" (Alice, Bob, Charlie). IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere!'
+        message: nightPrompt
       });
 
       setWaitingForFinn(true);
@@ -459,7 +477,10 @@ export default function MurderMysteryView({ onSwitchMode }: { onSwitchMode?: () 
         {title}
         {showRole && myRole && (
           <span className="ml-2 text-xs opacity-90">
-            ({myRole === 'murderer' ? '🔪 MURDERER' : '😇 INNOCENT'})
+            ({myRole === 'murderer' ? '🔪 MURDERER' :
+              myRole === 'detective' ? '🔍 DETECTIVE' :
+              myRole === 'doctor' ? '⚕️ DOCTOR' :
+              '👤 CIVILIAN'})
           </span>
         )}
       </div>

@@ -17,10 +17,10 @@ export async function POST(req: NextRequest) {
 
     // Initialize new game
     if (action === 'init') {
-      const { playerNames, humanPlayerName } = body;
+      const { playerNames, humanPlayerName, enabledRoles } = body;
 
       gameInstance = new MurderMysteryOrchestrator();
-      gameInstance.setupGame(playerNames, humanPlayerName);
+      gameInstance.setupGame(playerNames, humanPlayerName, enabledRoles);
 
       // Get role assignment messages
       const roleMessages = gameInstance.getRoleAssignmentMessages();
@@ -57,17 +57,24 @@ export async function POST(req: NextRequest) {
 
       // Collect night actions from all alive players
       const nightPrompts = aliveAgents.map(name => {
-        const otherPlayers = aliveAgents.filter(n => n !== name);
-        const isMurderer = gameInstance!.getRole(name) === 'murderer';
-        const mustHaveIntent = isMurderer && gameInstance!.murdererMustHaveIntent();
+        const role = gameInstance!.getRoleObject(name);
+        const context = {
+          agentName: name,
+          allPlayers: [...gameInstance!.gameState.alive, ...gameInstance!.gameState.dead],
+          alivePlayers: gameInstance!.gameState.alive,
+          deadPlayers: gameInstance!.gameState.dead,
+          dayNumber: gameInstance!.gameState.dayNumber,
+          mustHaveIntent: role.roleName === 'murderer' && gameInstance!.murdererMustHaveIntent()
+        };
+
+        const prompt = role.getNightPrompt(context);
+        if (!prompt) {
+          throw new Error(`Role ${role.roleName} does not have a night action`);
+        }
 
         return {
           agentName: name,
-          message: isMurderer
-            ? mustHaveIntent
-              ? `⚠️ NIGHT PHASE (INTENT REQUIRED): You did not have intent to kill last night, so you MUST have intent this night. Choose your action: "stay at your home with intent to kill" OR "visit another player's HOME with intent to kill" (${otherPlayers.join(', ')}). IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere!`
-              : `NIGHT PHASE: Choose your action. You can either "stay at your home" or "visit another player's HOME" (${otherPlayers.join(', ')}). IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere! Also specify if you have "intent to kill" (yes/no).`
-            : `NIGHT PHASE: Choose your action. You can either "stay at your home" or "visit another player's HOME" (${otherPlayers.join(', ')}). IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere!`
+          message: prompt
         };
       });
 
@@ -128,6 +135,33 @@ export async function POST(req: NextRequest) {
               if (victim) {
                 message += `\n\n[PRIVATE: Your kill was successful. ${victim} is dead.]`;
               }
+            } else {
+              // Had intent but no death - must have been protected
+              const potentialVictim = obs.otherPlayers[0]; // Should be only one other person
+              if (potentialVictim) {
+                message += `\n\n[PRIVATE: Your kill attempt failed. ${potentialVictim} may have been protected.]`;
+              }
+            }
+          }
+        }
+
+        // Tell detective about investigation outcome
+        if (gameInstance!.getRole(name) === 'detective') {
+          const investigation = result.investigations.get(name);
+          if (investigation) {
+            message += `\n\n[PRIVATE: Investigation Result - ${investigation.target} is: ${investigation.result.toUpperCase()}]`;
+          }
+        }
+
+        // Tell doctor about protection outcome
+        if (gameInstance!.getRole(name) === 'doctor') {
+          const protectedPlayer = result.protections.get(name);
+          if (protectedPlayer) {
+            const wasAttacked = obs.otherPlayers.includes(protectedPlayer) && !result.deaths.includes(protectedPlayer);
+            if (wasAttacked && result.deaths.length === 0) {
+              message += `\n\n[PRIVATE: You protected ${protectedPlayer}. They may have been targeted tonight - good save!]`;
+            } else {
+              message += `\n\n[PRIVATE: You protected ${protectedPlayer} tonight.]`;
             }
           }
         }
@@ -193,6 +227,10 @@ export async function POST(req: NextRequest) {
           detective,
           target: inv.target,
           result: inv.result
+        })) : undefined,
+        protections: result.protections.size > 0 ? Array.from(result.protections.entries()).map(([doctor, target]) => ({
+          doctor,
+          target
         })) : undefined
       });
     }

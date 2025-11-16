@@ -3,7 +3,8 @@ import { Role, RoleContext } from '../roles/Role';
 import { MurdererRole } from '../roles/Murderer';
 import { CivilianRole } from '../roles/Civilian';
 import { DetectiveRole } from '../roles/Detective';
-import { GameEvent, MoveEvent, KillIntentEvent, InvestigateEvent } from '../game/events';
+import { DoctorRole } from '../roles/Doctor';
+import { GameEvent, MoveEvent, KillIntentEvent, InvestigateEvent, ProtectEvent } from '../game/events';
 
 /**
  * MurderMysteryOrchestrator - Game-specific orchestrator for murder mystery game
@@ -58,7 +59,7 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
   /**
    * Initialize game with players
    */
-  setupGame(playerNames: string[], humanPlayerName?: string) {
+  setupGame(playerNames: string[], humanPlayerName?: string, enabledRoles?: { detective: boolean; doctor: boolean }) {
     // Register all agents
     playerNames.forEach(name => {
       const isHuman = name === humanPlayerName;
@@ -72,7 +73,7 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
     this.gameState.alive = [...playerNames];
 
     // Randomly assign roles
-    this.assignRoles(playerNames);
+    this.assignRoles(playerNames, enabledRoles);
 
     // Update agent system prompts based on roles
     this.updateAgentPrompts();
@@ -93,6 +94,8 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
         message = `👤 You are a CIVILIAN\n\nAlignment: Town (Good)\nGoal: Identify and vote out the murderer\nAbility: None (gather information through movement)\nStrategy: Share truthful observations and look for contradictions`;
       } else if (role.roleName === 'detective') {
         message = `🔍 You are the DETECTIVE\n\nAlignment: Town (Good)\nGoal: Identify and vote out the murderer\nAbility: Investigate one player each night to learn their role\nStrategy: Use investigations wisely and decide when to reveal findings`;
+      } else if (role.roleName === 'doctor') {
+        message = `⚕️ You are the DOCTOR\n\nAlignment: Town (Good)\nGoal: Protect town members from being killed\nAbility: Protect one player each night from death\nStrategy: Anticipate the murderer's targets and protect wisely`;
       }
 
       messages.set(playerName, message);
@@ -102,14 +105,32 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
   }
 
   /**
-   * GAME LOGIC: Randomly assign 1 murderer, rest civilians
+   * GAME LOGIC: Randomly assign roles based on enabled roles
+   * Always assigns 1 murderer. Distributes other roles among remaining players.
    */
-  private assignRoles(playerNames: string[]) {
+  private assignRoles(playerNames: string[], enabledRoles?: { detective: boolean; doctor: boolean }) {
     const shuffled = [...playerNames].sort(() => Math.random() - 0.5);
     const murdererIndex = Math.floor(Math.random() * shuffled.length);
 
+    // Build pool of available town roles
+    const townRoles: Role[] = [];
+    if (enabledRoles?.detective) townRoles.push(DetectiveRole);
+    if (enabledRoles?.doctor) townRoles.push(DoctorRole);
+
+    // Assign roles
+    let townRoleIndex = 0;
     shuffled.forEach((name, i) => {
-      this.gameState.roles.set(name, i === murdererIndex ? MurdererRole : CivilianRole);
+      if (i === murdererIndex) {
+        // Always assign one murderer
+        this.gameState.roles.set(name, MurdererRole);
+      } else if (townRoleIndex < townRoles.length) {
+        // Assign special town role if available
+        this.gameState.roles.set(name, townRoles[townRoleIndex]);
+        townRoleIndex++;
+      } else {
+        // Default to civilian
+        this.gameState.roles.set(name, CivilianRole);
+      }
     });
   }
 
@@ -166,6 +187,7 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
     observations: Map<string, { home: string; otherPlayers: string[] }>; // agentName -> {home, who they saw}
     murdererBlocked: boolean;
     investigations: Map<string, { target: string; result: string }>; // detective -> {target, role}
+    protections: Map<string, string>; // doctor -> protected player
   } {
     // Flatten all events
     const allEvents = playerEvents.flat();
@@ -177,6 +199,16 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
     moveEvents.forEach(({ source, targetHome }) => {
       if (!locations.has(targetHome)) locations.set(targetHome, []);
       locations.get(targetHome)!.push(source);
+    });
+
+    // Collect protections from PROTECT events
+    const protectEvents = allEvents.filter(e => e.type === 'PROTECT') as ProtectEvent[];
+    const protections = new Map<string, string>();
+    const protectedPlayers = new Set<string>();
+
+    protectEvents.forEach(({ source, target }) => {
+      protections.set(source, target);
+      protectedPlayers.add(target);
     });
 
     // Determine kills
@@ -202,7 +234,11 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
           // Exactly 2 people: murderer + victim
           const victim = peopleAtLocation.find(name => name !== murdererName);
           if (victim) {
-            deaths.push(victim);
+            // Check if victim is protected
+            if (!protectedPlayers.has(victim)) {
+              deaths.push(victim);
+            }
+            // If protected, victim survives (no death added)
           }
         } else if (peopleAtLocation.length >= 3) {
           // 3+ people: kill blocked
@@ -240,7 +276,7 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
       this.gameState.dead.push(name);
     });
 
-    return { deaths, observations, murdererBlocked, investigations };
+    return { deaths, observations, murdererBlocked, investigations, protections };
   }
 
   /**
