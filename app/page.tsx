@@ -226,14 +226,16 @@ export default function Home() {
     return <MurderMysteryView
       onSwitchMode={() => setView('strategic-sharing')}
       enabledRoles={{ detective: roles.detective, doctor: roles.doctor }}
+      initialShowAIBrains={true}
     />;
   }
 
-  // Classic mode (TODO: implement separate classic view)
+  // Classic mode - AI Brains hidden by default
   if (view === 'classic') {
     return <MurderMysteryView
       onSwitchMode={() => setView('strategic-sharing')}
       enabledRoles={{ detective: roles.detective, doctor: roles.doctor }}
+      initialShowAIBrains={false}
     />;
   }
 

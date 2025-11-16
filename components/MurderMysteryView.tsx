@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -23,10 +23,12 @@ type Phase = 'init' | string; // night_1, day_1_discussion, day_1_voting, etc.
 
 export default function MurderMysteryView({
   onSwitchMode,
-  enabledRoles
+  enabledRoles,
+  initialShowAIBrains = true
 }: {
   onSwitchMode?: () => void;
   enabledRoles?: { detective: boolean; doctor: boolean };
+  initialShowAIBrains?: boolean;
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -44,7 +46,17 @@ export default function MurderMysteryView({
 
   const [gameOver, setGameOver] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
-  const [showAIBrains, setShowAIBrains] = useState(true);
+  const [showAIBrains, setShowAIBrains] = useState(initialShowAIBrains);
+  const [darkMode, setDarkMode] = useState(false);
+
+  // Auto-toggle dark mode based on phase
+  useEffect(() => {
+    if (currentPhase.startsWith('night_')) {
+      setDarkMode(true);
+    } else if (currentPhase.includes('day_') || currentPhase === 'init') {
+      setDarkMode(false);
+    }
+  }, [currentPhase]);
 
   // Parse individual message
   const parseMessage = (msg: any) => {
@@ -484,20 +496,30 @@ export default function MurderMysteryView({
           </span>
         )}
       </div>
-      <Card className="flex-1 rounded-t-none rounded-b-lg p-3 overflow-y-auto bg-white border border-slate-200 min-h-0">
+      <Card className={`flex-1 rounded-t-none rounded-b-lg p-3 overflow-y-auto min-h-0 ${
+        darkMode
+          ? 'bg-slate-800 border-slate-600'
+          : 'bg-white border-slate-200'
+      }`}>
         <div className="flex flex-col gap-2">
           {messages.map((msg, i) => (
             <div
               key={i}
               className={`px-2.5 py-2 rounded-lg text-sm ${
                 msg.isPrivate
-                  ? 'bg-red-50 text-slate-900 border border-red-300'
+                  ? darkMode
+                    ? 'bg-red-900/40 text-red-100 border border-red-700'
+                    : 'bg-red-50 text-slate-900 border border-red-300'
                   : msg.from === 'Game Master'
-                  ? 'bg-blue-50 text-slate-900 border border-blue-200'
+                  ? darkMode
+                    ? 'bg-blue-900/40 text-blue-100 border border-blue-700'
+                    : 'bg-blue-50 text-slate-900 border border-blue-200'
+                  : darkMode
+                  ? 'bg-slate-700 text-slate-100 border border-slate-600'
                   : 'bg-slate-100 text-slate-900 border border-slate-300'
               }`}
             >
-              <div className="text-xs text-slate-500 mb-1">
+              <div className={`text-xs mb-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
                 {msg.from} → {msg.to}
               </div>
               <div className="whitespace-pre-wrap">{msg.message}</div>
@@ -515,7 +537,11 @@ export default function MurderMysteryView({
                     submitFinnResponse();
                   }
                 }}
-                className="flex-1"
+                className={`flex-1 ${
+                  darkMode
+                    ? 'bg-slate-700 border-slate-600 text-slate-100 placeholder:text-slate-400'
+                    : ''
+                }`}
                 autoFocus
               />
               <Button onClick={submitFinnResponse} size="sm">
@@ -551,13 +577,19 @@ export default function MurderMysteryView({
   );
 
   return (
-    <div className="h-screen flex flex-col p-4 bg-slate-50">
+    <div className={`h-screen flex flex-col p-4 transition-colors duration-500 ${
+      darkMode ? 'bg-slate-900' : 'bg-slate-50'
+    }`}>
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-semibold text-slate-900 mb-1">
-            🔪 Murder Mystery Game
+          <h1 className={`text-3xl font-semibold mb-1 transition-colors ${
+            darkMode ? 'text-slate-100' : 'text-slate-900'
+          }`}>
+            {darkMode ? '🌙 Murder Mystery Game' : '🔪 Murder Mystery Game'}
           </h1>
-          <div className="text-slate-600 text-sm">
+          <div className={`text-sm transition-colors ${
+            darkMode ? 'text-slate-400' : 'text-slate-600'
+          }`}>
             Social deduction game with isolated agent contexts
           </div>
         </div>
@@ -572,7 +604,10 @@ export default function MurderMysteryView({
           <Button
             onClick={() => setShowAIBrains(!showAIBrains)}
             variant="outline"
-            className="bg-white text-slate-900 border-slate-200 hover:bg-slate-50"
+            className={darkMode
+              ? 'bg-slate-800 text-slate-100 border-slate-600 hover:bg-slate-700'
+              : 'bg-white text-slate-900 border-slate-200 hover:bg-slate-50'
+            }
           >
             {showAIBrains ? '👁️ Hide AI Brains' : '👁️ Show AI Brains'}
           </Button>
@@ -580,7 +615,10 @@ export default function MurderMysteryView({
             <Button
               onClick={onSwitchMode}
               variant="outline"
-              className="bg-white text-slate-900 border-slate-200 hover:bg-slate-50"
+              className={darkMode
+                ? 'bg-slate-800 text-slate-100 border-slate-600 hover:bg-slate-700'
+                : 'bg-white text-slate-900 border-slate-200 hover:bg-slate-50'
+              }
             >
               📊 Strategic Sharing
             </Button>
@@ -589,15 +627,25 @@ export default function MurderMysteryView({
       </div>
 
       {errorMsg && (
-        <div className="bg-red-50 text-red-900 border border-red-200 px-3 py-2 rounded-lg mb-3">
+        <div className={`px-3 py-2 rounded-lg mb-3 ${
+          darkMode
+            ? 'bg-red-900/40 text-red-200 border border-red-700'
+            : 'bg-red-50 text-red-900 border border-red-200'
+        }`}>
           {errorMsg}
         </div>
       )}
 
       {currentPhase !== 'init' && (
-        <div className="bg-blue-50 text-blue-900 border border-blue-200 px-3 py-2 rounded-lg mb-3 text-sm">
+        <div className={`px-3 py-2 rounded-lg mb-3 text-sm ${
+          darkMode
+            ? 'bg-blue-900/40 text-blue-200 border border-blue-700'
+            : 'bg-blue-50 text-blue-900 border border-blue-200'
+        }`}>
           📍 Current Phase: <span className="font-semibold">{currentPhase}</span>
-          {gameOver && <span className="ml-4 text-green-700 font-bold">🎮 GAME OVER - {winner?.toUpperCase()} WIN!</span>}
+          {gameOver && <span className={`ml-4 font-bold ${
+            darkMode ? 'text-green-400' : 'text-green-700'
+          }`}>🎮 GAME OVER - {winner?.toUpperCase()} WIN!</span>}
         </div>
       )}
 
