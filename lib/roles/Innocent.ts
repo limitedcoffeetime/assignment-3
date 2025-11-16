@@ -57,7 +57,7 @@ REASONING STYLE: When providing reasoning, be CONCISE. Focus only on your key de
       required: ['action', 'targetPlayer']
     };
 
-    const result = await interpretFn<{ interpreted: { action: 'stay' | 'visit'; targetPlayer: string }; reasoning: string }>(
+    const result = await interpretFn<{ action: 'stay' | 'visit'; targetPlayer: string }>(
       rawInput,
       interpretationPrompt,
       schema
@@ -66,7 +66,7 @@ REASONING STYLE: When providing reasoning, be CONCISE. Focus only on your key de
     const events: GameEvent[] = [];
 
     // MOVE event - where the innocent goes
-    const targetHome = toHomeName(result.interpreted.targetPlayer);
+    const targetHome = toHomeName(result.targetPlayer);
     events.push(createMoveEvent(agentName, targetHome));
 
     return events;

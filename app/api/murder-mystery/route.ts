@@ -73,15 +73,15 @@ export async function POST(req: NextRequest) {
         true
       );
 
-      // Interpret each action using LLM
-      const nightActions = await Promise.all(
+      // Interpret each action using LLM (returns GameEvent[] per player)
+      const allPlayerEvents = await Promise.all(
         actionResponses.map(r =>
           gameInstance!.interpretNightAction(r.agentName, r.response)
         )
       );
 
-      // Resolve night
-      const result = gameInstance!.resolveNight(nightActions);
+      // Resolve night (expects GameEvent[][])
+      const result = gameInstance!.resolveNight(allPlayerEvents);
 
       // Send private observations to each player AND add to their conversation history
       const observationMessages: any[] = [];
@@ -110,8 +110,12 @@ export async function POST(req: NextRequest) {
 
         // Tell murderer about kill outcome
         if (gameInstance!.getRole(name) === 'murderer') {
-          const murdererAction = nightActions.find(a => a.agentName === name);
-          if (murdererAction?.intent) {
+          // Find murderer's events
+          const murdererEventIndex = actionResponses.findIndex(r => r.agentName === name);
+          const murdererEvents = murdererEventIndex >= 0 ? allPlayerEvents[murdererEventIndex] : [];
+          const hadKillIntent = murdererEvents.some(e => e.type === 'KILL_INTENT');
+
+          if (hadKillIntent) {
             if (result.murdererBlocked) {
               message += `\n\n[PRIVATE: Since there was more than 1 person present, you did not follow through with your intent to kill.]`;
             } else if (result.deaths.length > 0) {
@@ -152,6 +156,20 @@ export async function POST(req: NextRequest) {
       // Check if human player (Finn) died - game over for them
       const humanPlayerDied = result.deaths.includes('Finn');
 
+      // Convert events to UI-friendly format
+      const nightActions = allPlayerEvents.map((events, index) => {
+        const agentName = actionResponses[index].agentName;
+        const moveEvent = events.find(e => e.type === 'MOVE');
+        const killIntentEvent = events.find(e => e.type === 'KILL_INTENT');
+
+        return {
+          agent: agentName,
+          action: moveEvent && 'targetHome' in moveEvent ? 'visit' : 'stay',
+          targetHome: moveEvent && 'targetHome' in moveEvent ? moveEvent.targetHome : `${agentName.toLowerCase()}_home`,
+          intent: !!killIntentEvent
+        };
+      });
+
       return NextResponse.json({
         phase,
         nightPrompts: nightPrompts.map(p => ({ agent: p.agentName, prompt: p.message })),
@@ -160,18 +178,18 @@ export async function POST(req: NextRequest) {
           response: r.response,
           reasoning: r.reasoning
         })),
-        nightActions: nightActions.map(a => ({
-          agent: a.agentName,
-          action: a.action,
-          targetHome: a.targetHome,
-          intent: a.intent
-        })),
+        nightActions,
         deaths: result.deaths,
         observations: observationMessages,
         winner: winCheck.winner || (humanPlayerDied ? 'murderer' : null),
         winReason: winCheck.winner ? winCheck.reason : (humanPlayerDied ? '💀 Unlucky! You died.' : ''),
         humanPlayerDied,
-        nextPhase: (winCheck.winner || humanPlayerDied) ? null : `day_${gameInstance.gameState.dayNumber + 1}_discussion`
+        nextPhase: (winCheck.winner || humanPlayerDied) ? null : `day_${gameInstance.gameState.dayNumber + 1}_discussion`,
+        investigations: result.investigations.size > 0 ? Array.from(result.investigations.entries()).map(([detective, inv]) => ({
+          detective,
+          target: inv.target,
+          result: inv.result
+        })) : undefined
       });
     }
 
@@ -267,7 +285,7 @@ export async function POST(req: NextRequest) {
         })),
         voteCounts: Object.fromEntries(voteResult.voteCounts),
         hanged: voteResult.hanged,
-        hangedRole: voteResult.role,
+        hangedRole: voteResult.role?.roleName || null,
         winner: winCheck.winner,
         winReason: winCheck.reason,
         nextPhase: winCheck.winner ? null : `night_${dayNum + 1}`

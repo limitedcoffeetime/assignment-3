@@ -316,11 +316,17 @@ export class MurderMysteryOrchestrator extends GameOrchestrator {
       mustHaveIntent // Murderer-specific context
     };
 
+    // Create adapter function that unwraps interpretInput result for roles
+    const interpretFn = async <T>(rawInput: string, prompt: string, schema: any): Promise<T> => {
+      const result = await this.interpretInput<T>(rawInput, prompt, schema);
+      return result.interpreted;
+    };
+
     // Use the role's interpretNightAction method
     const events = await role.interpretNightAction(
       rawInput,
       context,
-      this.interpretInput.bind(this)
+      interpretFn
     );
 
     return events;

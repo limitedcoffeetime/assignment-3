@@ -59,14 +59,14 @@ REASONING STYLE: When providing reasoning, be CONCISE. Focus only on your key de
       required: ['target']
     };
 
-    const result = await interpretFn<{ interpreted: { target: string }; reasoning: string }>(
+    const result = await interpretFn<{ target: string }>(
       rawInput,
       interpretationPrompt,
       schema
     );
 
     const events: GameEvent[] = [];
-    const target = result.interpreted.target;
+    const target = result.target;
 
     // MOVE event - detective goes to target's home to investigate
     const targetHome = toHomeName(target);

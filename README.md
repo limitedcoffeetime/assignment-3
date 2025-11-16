@@ -1,83 +1,235 @@
-## A3: Multi‑agent Interaction
+## A3: Multi-Agent Murder Mystery Game
 
-This application is a frame‑sensitive conversational system built with Next.js, React, TypeScript, Tailwind CSS, and Shadcn UI. You will design and implement frame agents, an orchestrator, and a replier so the system adapts its tone/genre/goals based on context.
+A multi-agent conversational system built with Next.js, React, TypeScript, and the Google Gemini API. Features an extensible event-based architecture for implementing social deduction games with isolated agent contexts.
 
-What you implement:
-- Agents in `lib/agents/*`
-- Orchestrators in `lib/orchestrators/*`
+### Game Modes
 
-## Setup and Running the App
+**Murder Mystery** (Primary Mode)
+- 4-player social deduction game (Murderer vs Innocents)
+- Isolated agent contexts - each agent maintains separate conversation history
+- Event-based role system - easily extensible with new roles
+- Phases: Night (actions) → Day (discussion + voting) → repeat
+- Win conditions: Innocents hang murderer OR murderer eliminates all innocents
 
-Install required tools (choose per OS):
-- Node.js 20.x (includes npm)
-  - macOS: `brew install node` (Homebrew), or download from nodejs.org
-  - Windows: install Node LTS from nodejs.org (includes npm)
-  - Linux: use your package manager or NodeSource installers
-- Git (to clone and manage the repo)
-- An editor (Cursor recommended)
+**Strategic Sharing** (Secondary Mode)
+- Multi-step negotiation game with 4 agents
+- Demonstrates alternative orchestration pattern
 
-Clone and start the app:
-- `git clone <your-repo-url>`
-- `cd assignment-3`
-- `cp .env.example .env` (you will fill it in the next step)
-- `npm install`
-- `npm run dev`
-- Open `http://localhost:3000`
+### Architecture
 
-At this point, you should have a working app that you can use to chat with the replier; however, the replier will not be able to use the Gemini API because you have not yet added your API key to `.env`.
+**Event System** ([lib/game/events.ts](lib/game/events.ts))
+- Clean separation between role actions and game logic
+- Event types: `MOVE`, `KILL_INTENT`, `INVESTIGATE`, `PROTECT`, `BLOCK`
+- Roles emit events → Orchestrator resolves them deterministically
 
-## Getting Started with the Gemini API
+**Role System** ([lib/roles/](lib/roles/))
+- Self-contained role definitions with system prompts
+- Each role specifies: prompts, action interpretation, event emission
+- Implemented roles:
+  - **Murderer** - Kills when alone with victim + intent
+  - **Innocent** - Gathers information through movement
+  - **Detective** - Investigates players to learn their roles (extensibility demo)
 
-Per the instructions in Canvas, add Google API credits to a personal Google account. 
+**Orchestrator** ([lib/orchestrators/MurderMysteryOrchestrator.ts](lib/orchestrators/MurderMysteryOrchestrator.ts))
+- Manages game state machine and win conditions
+- Controls information flow via `notifyAgent()` / `broadcastToAgents()`
+- Event resolution is deterministic (NOT LLM-based)
 
-Important: While you will use your `@mit.edu` email to get a coupon code for Gemini credits, do NOT claim credits using your `@mit.edu` email. Instead, use a personal Google account to avoid institutional billing/limits.
+**Isolated Agents** ([lib/agents/IsolatedAgent.ts](lib/agents/IsolatedAgent.ts))
+- Each agent maintains separate `conversationHistory`
+- Agents only see what orchestrator explicitly shows them
+- Enables hidden information games
 
-Once you have credits added, you can create an API key in Google AI Studio and add it to `.env`.
+### Setup and Running
 
-Steps:
-- Go to Google AI Studio (https://aistudio.google.com/)
-- Click Get API Key
-- Click Create API Key
-- Copy your key and set environment values in `.env`:
+**Prerequisites:**
+- Node.js 20.x
+- Git
+- Google AI Studio API key (see below)
 
+**Quick Start:**
+```bash
+git clone <your-repo-url>
+cd assignment-3
+cp .env.example .env
+npm install
+npm run dev
 ```
+
+Open [http://localhost:3000](http://localhost:3000)
+
+**Environment Setup:**
+
+1. Get Gemini API credits (use personal Google account, not @mit.edu)
+2. Go to [Google AI Studio](https://aistudio.google.com/)
+3. Create API key
+4. Add to `.env`:
+```bash
 GEMINI_API_KEY=your_api_key_here
-GEMINI_MODEL=gemini-2.5-flash
 ```
 
-Restart `npm run dev` after changing `.env`.
+**Note:** The model is hardcoded to `gemini-2.5-flash` in [lib/gemini.ts](lib/gemini.ts:25)
 
-## Safely Deploy to Vercel
+Restart dev server after changing `.env`
 
-After implementing the agents and orchestrators, you can set up Vercel and deploy your application without exposing secrets.
+### Testing Without UI
 
-Reminder: do not commit `.env` or any API keys to Git.
+**Test Harness** ([test-game.ts](test-game.ts))
+```bash
+npx tsx test-game.ts
+```
 
-Steps:
-- Create a Vercel account and import your GitHub repo as a new project
-- In Vercel Project Settings → Environment Variables, add:
-  - `GEMINI_API_KEY` 
-  - `GEMINI_MODEL` (e.g., `gemini-2.5-flash`)
-- Trigger a deploy (Vercel builds and hosts your app)
-- Verify the app works at your Vercel URL
+Features:
+- ✅ Colored terminal output (red=murderer, green=innocent)
+- ✅ Omniscient view of all secret roles
+- ✅ Full game simulation (night/discussion/voting)
+- ✅ Agent reasoning display (💭 symbol)
+- ✅ Action interpretation display
+- ✅ Game state tracking
 
-Safety reminders:
-- Ensure `.env` is in `.gitignore` (already included)
-- Never push secrets to Git; use Vercel Environment Variables only
-- Optionally rotate keys after testing
+**Detective Role Demo** ([test-detective.ts](test-detective.ts))
+```bash
+npx tsx test-detective.ts
+```
 
-## Quick Dev Reference
+Demonstrates how easily new roles can be added (~90 lines of code).
 
-- Start dev server: `npm run dev` (http://localhost:3000)
-- Build: `npm run build`
-- Start production server: `npm run start`
-- Lint code: `npm run lint`
+### Adding New Roles
 
-## Tech Stack
+**Step 1: Create Role File** (e.g., `lib/roles/Doctor.ts`)
+```typescript
+import { Role, RoleContext, toHomeName } from './Role';
+import { GameEvent, createMoveEvent, createProtectEvent } from '../game/events';
 
-- **Framework**: Next.js 15 with App Router
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **UI Components**: Shadcn UI
-- **AI**: Google Gemini API
-- **Deployment**: Vercel
+export const DoctorRole: Role = {
+  roleName: 'doctor',
+  alignment: 'town',
+
+  getSystemPrompt(context: RoleContext): string {
+    return `You are ${context.agentName}, the DOCTOR. You can protect one player each night from death...`;
+  },
+
+  getNightPrompt(context: RoleContext): string {
+    const others = context.alivePlayers.filter(p => p !== context.agentName);
+    return `Who do you want to protect tonight? Choose: ${others.join(', ')}`;
+  },
+
+  async interpretNightAction(rawInput, context, interpretFn) {
+    const result = await interpretFn<{ target: string }>(
+      rawInput,
+      `Choose a player to protect: ${context.alivePlayers.join(', ')}`,
+      {
+        type: 'OBJECT',
+        properties: { target: { type: 'STRING', enum: context.alivePlayers } },
+        required: ['target']
+      }
+    );
+
+    return [
+      createMoveEvent(context.agentName, toHomeName(context.agentName)), // Stay home
+      createProtectEvent(context.agentName, result.target)
+    ];
+  }
+};
+```
+
+**Step 2: Import in Orchestrator**
+```typescript
+// lib/orchestrators/MurderMysteryOrchestrator.ts
+import { DoctorRole } from '../roles/Doctor';
+```
+
+**Step 3: Handle Events in Resolution** (if needed)
+```typescript
+// In resolveNight(), add:
+const protectEvents = allEvents.filter(e => e.type === 'PROTECT') as ProtectEvent[];
+const protectedPlayers = protectEvents.map(e => e.target);
+// Prevent deaths of protected players...
+```
+
+That's it! No other changes needed.
+
+### Project Structure
+
+```
+lib/
+├── agents/
+│   └── IsolatedAgent.ts        # Stateful agent with conversation history
+├── orchestrators/
+│   ├── GameOrchestrator.ts     # Base class with agent management
+│   └── MurderMysteryOrchestrator.ts  # Game-specific logic
+├── roles/
+│   ├── Role.ts                 # Role interface
+│   ├── Murderer.ts            # Murderer role definition
+│   ├── Innocent.ts            # Innocent role definition
+│   └── Detective.ts           # Detective role (extensibility demo)
+├── game/
+│   └── events.ts              # Event type definitions
+└── gemini.ts                  # Gemini API wrapper
+
+app/
+├── api/
+│   └── murder-mystery/route.ts  # Game API endpoint
+└── page.tsx                    # Main UI with mode toggle
+
+components/
+├── MurderMysteryView.tsx      # Murder mystery UI
+└── MultiAgentView.tsx         # Strategic sharing UI
+
+test-game.ts                   # Testing harness (no UI needed)
+test-detective.ts             # Detective role demo
+```
+
+### Key Design Principles
+
+1. **Event-Driven:** Roles emit events, orchestrator resolves deterministically
+2. **Isolated Contexts:** Each agent has separate conversation history
+3. **Type-Safe:** Full TypeScript coverage
+4. **Extensible:** Adding roles takes ~90 lines of code
+5. **LLM for Intent, Code for Logic:** Use LLMs for selection/generation, deterministic code for game rules
+
+### Development Commands
+
+```bash
+npm run dev      # Start dev server (http://localhost:3000)
+npm run build    # Build for production
+npm run start    # Start production server
+npm run lint     # Lint with ESLint
+
+npx tsx test-game.ts       # Run test harness
+npx tsx test-detective.ts  # Test Detective role
+```
+
+### Deployment to Vercel
+
+1. Create Vercel account and import GitHub repo
+2. In Vercel Project Settings → Environment Variables:
+   - Add `GEMINI_API_KEY`
+3. Trigger deploy
+4. Verify at your Vercel URL
+
+**Security:**
+- ✅ `.env` is in `.gitignore`
+- ✅ Never commit API keys to Git
+- ✅ Use Vercel Environment Variables for production
+
+### Tech Stack
+
+- **Framework:** Next.js 15 (App Router)
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS + Shadcn UI
+- **AI:** Google Gemini API (gemini-2.5-flash)
+- **Deployment:** Vercel
+
+### Documentation
+
+See [CLAUDE.md](CLAUDE.md) for detailed technical documentation including:
+- Agent initialization patterns
+- Orchestrator patterns
+- Information flow architecture
+- Gemini API usage patterns
+- Quick reference comparison tables
+
+### Game Rules
+
+See [GAME_RULES.md](GAME_RULES.md) for complete Murder Mystery game rules.
