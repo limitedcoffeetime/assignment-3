@@ -573,26 +573,26 @@ export default function MurderMysteryView({
 
   const DebugColumn = () => (
     <div className="flex-1 flex flex-col h-full">
-      <div className={`px-3 py-2 font-bold text-sm rounded-t-lg shadow-lg transition-colors duration-500 ${
+      <div className={`px-3 py-2 font-bold text-sm rounded-t-lg shadow-lg transition-colors duration-1000 ${
         darkMode
           ? 'bg-gradient-to-r from-purple-950 to-slate-800 text-purple-200 shadow-black/50'
           : 'bg-gradient-to-r from-purple-700 to-slate-700 text-white shadow-slate-900/30'
       }`}>
         🔍 Game Master Debug
       </div>
-      <Card className={`flex-1 rounded-t-none rounded-b-lg p-3 overflow-y-auto min-h-0 font-mono text-xs transition-colors duration-500 ${
+      <Card className={`flex-1 rounded-t-none rounded-b-lg p-3 overflow-y-auto min-h-0 font-mono text-xs transition-colors duration-1000 ${
         darkMode
           ? 'bg-gradient-to-b from-slate-950 to-slate-900 border-purple-900/50 shadow-[inset_0_2px_20px_rgba(0,0,0,0.4)]'
           : 'bg-gradient-to-b from-slate-800 to-slate-700 border-slate-600 shadow-[inset_0_2px_10px_rgba(0,0,0,0.3)]'
       }`}>
         <div className="flex flex-col gap-2">
           {debugEvents.map((event, i) => (
-            <div key={i} className={`px-2 py-1.5 rounded border transition-colors duration-500 ${
+            <div key={i} className={`px-2 py-1.5 rounded border transition-colors duration-1000 ${
               darkMode
                 ? 'bg-gradient-to-br from-slate-900 to-slate-800 text-slate-100 border-slate-700/70'
                 : 'bg-gradient-to-br from-slate-700 to-slate-600 text-slate-100 border-slate-600'
             }`}>
-              <div className={`font-semibold mb-1 transition-colors duration-500 ${
+              <div className={`font-semibold mb-1 transition-colors duration-1000 ${
                 darkMode ? 'text-purple-400' : 'text-purple-300'
               }`}>
                 {event.type}
@@ -608,36 +608,38 @@ export default function MurderMysteryView({
   );
 
   return (
-    <div className={`h-screen flex flex-col p-4 transition-all duration-500 relative overflow-hidden ${
+    <div className={`h-screen flex flex-col p-4 transition-colors duration-1000 ease-in-out relative overflow-hidden ${
       darkMode
         ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-red-950/20'
         : 'bg-gradient-to-br from-slate-50 via-white to-orange-50/30'
     }`}>
-      {/* Atmospheric background effects */}
-      {darkMode && (
-        <>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(139,0,0,0.15),transparent_50%)] pointer-events-none" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(30,41,59,0.4),transparent_40%)] pointer-events-none" />
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-red-900/50 to-transparent" />
-        </>
-      )}
-      {!darkMode && (
-        <>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(251,146,60,0.08),transparent_40%)] pointer-events-none" />
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZ3JpZCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNIDQwIDAgTCAwIDAgMCA0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZ2JhKDAsIDAsIDAsIDAuMDIpIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30 pointer-events-none" />
-        </>
-      )}
+      {/* Atmospheric background effects - always rendered but with opacity transitions */}
+      <div className={`absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(139,0,0,0.15),transparent_50%)] pointer-events-none transition-opacity duration-1000 ease-in-out ${
+        darkMode ? 'opacity-100' : 'opacity-0'
+      }`} />
+      <div className={`absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(30,41,59,0.4),transparent_40%)] pointer-events-none transition-opacity duration-1000 ease-in-out ${
+        darkMode ? 'opacity-100' : 'opacity-0'
+      }`} />
+      <div className={`absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-red-900/50 to-transparent transition-opacity duration-1000 ease-in-out ${
+        darkMode ? 'opacity-100' : 'opacity-0'
+      }`} />
+      <div className={`absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(251,146,60,0.08),transparent_40%)] pointer-events-none transition-opacity duration-1000 ease-in-out ${
+        darkMode ? 'opacity-0' : 'opacity-100'
+      }`} />
+      <div className={`absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZ3JpZCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNIDQwIDAgTCAwIDAgMCA0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZ2JhKDAsIDAsIDAsIDAuMDIpIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30 pointer-events-none transition-opacity duration-1000 ease-in-out ${
+        darkMode ? 'opacity-0' : 'opacity-100'
+      }`} />
 
       <div className="mb-3 flex items-center justify-between relative z-10">
         <div>
-          <h1 className={`text-4xl font-black mb-1 transition-all duration-500 tracking-tight ${
+          <h1 className={`text-4xl font-black mb-1 transition-all duration-1000 tracking-tight ${
             darkMode
               ? 'text-transparent bg-clip-text bg-gradient-to-r from-red-200 via-red-300 to-red-500 drop-shadow-[0_0_25px_rgba(220,38,38,0.5)]'
               : 'text-transparent bg-clip-text bg-gradient-to-r from-red-800 via-red-600 to-orange-600 drop-shadow-[0_2px_8px_rgba(220,38,38,0.3)]'
           }`}>
             {darkMode ? '🌙 MURDER MYSTERY' : '🔪 MURDER MYSTERY'}
           </h1>
-          <div className={`text-sm transition-colors duration-500 font-medium ${
+          <div className={`text-sm transition-colors duration-1000 font-medium ${
             darkMode ? 'text-red-300/70' : 'text-slate-700'
           }`}>
             Social deduction with isolated agent contexts
@@ -647,7 +649,7 @@ export default function MurderMysteryView({
           <Button
             onClick={startGame}
             disabled={isLoading}
-            className={`font-semibold px-6 transition-colors duration-500 ${
+            className={`font-semibold px-6 transition-colors duration-1000 ${
               darkMode
                 ? 'bg-gradient-to-r from-red-900 to-red-800 hover:from-red-800 hover:to-red-700 border border-red-700/50 shadow-lg shadow-red-900/40'
                 : 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 shadow-md hover:shadow-lg'
@@ -658,7 +660,7 @@ export default function MurderMysteryView({
           <Button
             onClick={() => setShowAIBrains(!showAIBrains)}
             variant="outline"
-            className={`transition-colors duration-500 ${
+            className={`transition-colors duration-1000 ${
               darkMode
                 ? 'bg-slate-800 text-slate-100 border-slate-600 hover:bg-slate-700 hover:border-slate-500 shadow-lg shadow-black/20'
                 : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-50 hover:border-slate-400 shadow-md'
@@ -670,7 +672,7 @@ export default function MurderMysteryView({
             <Button
               onClick={onSwitchMode}
               variant="outline"
-              className={`transition-colors duration-500 ${
+              className={`transition-colors duration-1000 ${
                 darkMode
                   ? 'bg-slate-800 text-slate-100 border-slate-600 hover:bg-slate-700 hover:border-slate-500 shadow-lg shadow-black/20'
                   : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-50 hover:border-slate-400 shadow-md'
@@ -683,7 +685,7 @@ export default function MurderMysteryView({
       </div>
 
       {errorMsg && (
-        <div className={`px-4 py-3 rounded-lg mb-3 font-semibold transition-colors duration-500 ${
+        <div className={`px-4 py-3 rounded-lg mb-3 font-semibold transition-colors duration-1000 ${
           darkMode
             ? 'bg-gradient-to-r from-red-950/80 to-red-900/60 text-red-200 border border-red-700/70 shadow-lg shadow-red-900/30'
             : 'bg-gradient-to-r from-red-100 to-red-50 text-red-900 border border-red-300 shadow-md'
@@ -693,13 +695,13 @@ export default function MurderMysteryView({
       )}
 
       {currentPhase !== 'init' && (
-        <div className={`px-4 py-3 rounded-lg mb-3 text-sm font-semibold transition-colors duration-500 ${
+        <div className={`px-4 py-3 rounded-lg mb-3 text-sm font-semibold transition-colors duration-1000 ${
           darkMode
             ? 'bg-gradient-to-r from-blue-950/80 to-slate-900/60 text-blue-200 border border-blue-700/70 shadow-lg shadow-blue-900/30'
             : 'bg-gradient-to-r from-blue-100 to-blue-50 text-blue-900 border border-blue-300 shadow-md'
         }`}>
           📍 Current Phase: <span className="font-bold text-base">{currentPhase}</span>
-          {gameOver && <span className={`ml-4 font-bold text-base transition-colors duration-500 ${
+          {gameOver && <span className={`ml-4 font-bold text-base transition-colors duration-1000 ${
             darkMode ? 'text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.6)]' : 'text-green-700'
           }`}>🎮 GAME OVER - {winner?.toUpperCase()} WIN!</span>}
         </div>
