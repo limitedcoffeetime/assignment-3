@@ -43,6 +43,72 @@
       height: 0;
     }
   }
+
+  /* Enter/Exit animations for Radix UI components */
+  @keyframes enter {
+    from {
+      opacity: var(--enter-opacity, 1);
+      transform: translate3d(
+          var(--enter-translate-x, 0),
+          var(--enter-translate-y, 0),
+          0
+        )
+        scale3d(
+          var(--enter-scale, 1),
+          var(--enter-scale, 1),
+          var(--enter-scale, 1)
+        )
+        rotate(var(--enter-rotate, 0));
+    }
+  }
+
+  @keyframes exit {
+    to {
+      opacity: var(--exit-opacity, 1);
+      transform: translate3d(
+          var(--exit-translate-x, 0),
+          var(--exit-translate-y, 0),
+          0
+        )
+        scale3d(
+          var(--exit-scale, 1),
+          var(--exit-scale, 1),
+          var(--exit-scale, 1)
+        )
+        rotate(var(--exit-rotate, 0));
+    }
+  }
+}
+
+/* Hover Card Animations */
+.hover-card-animated[data-state="open"] {
+  animation: hoverCardEnter 300ms ease-out;
+}
+
+.hover-card-animated[data-state="closed"] {
+  animation: hoverCardExit 200ms ease-out;
+}
+
+@keyframes hoverCardEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes hoverCardExit {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95) translateY(-0.5rem);
+  }
 }
 
 body {

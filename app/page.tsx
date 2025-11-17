@@ -16,6 +16,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card';
 import MultiAgentView from '@/components/MultiAgentView';
 import MurderMysteryView from '@/components/MurderMysteryView';
 
@@ -161,7 +166,14 @@ export default function Home() {
 
                   {/* Civilian Role */}
                   <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-green-900/30">
-                    <span className="text-green-400 font-medium">Civilian</span>
+                    <HoverCard openDelay={300} closeDelay={200}>
+                      <HoverCardTrigger asChild>
+                        <span className="text-green-400 font-medium cursor-help">Civilian</span>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="bg-slate-800 border-slate-700 text-slate-100">
+                        <p className="text-sm">Can move between homes at night. No special abilities.</p>
+                      </HoverCardContent>
+                    </HoverCard>
                     <Switch
                       checked={roles.civilian}
                       disabled={true}
@@ -171,7 +183,14 @@ export default function Home() {
 
                   {/* Detective Role */}
                   <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-green-900/30">
-                    <span className="text-green-400 font-medium">Detective</span>
+                    <HoverCard openDelay={300} closeDelay={200}>
+                      <HoverCardTrigger asChild>
+                        <span className="text-green-400 font-medium cursor-help">Detective</span>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="bg-slate-800 border-slate-700 text-slate-100">
+                        <p className="text-sm">Can investigate one player each night to learn their role.</p>
+                      </HoverCardContent>
+                    </HoverCard>
                     <Switch
                       checked={roles.detective}
                       onCheckedChange={(checked) => setRoles({ ...roles, detective: checked })}
@@ -181,7 +200,14 @@ export default function Home() {
 
                   {/* Doctor Role */}
                   <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-green-900/30">
-                    <span className="text-green-400 font-medium">Doctor</span>
+                    <HoverCard openDelay={300} closeDelay={200}>
+                      <HoverCardTrigger asChild>
+                        <span className="text-green-400 font-medium cursor-help">Doctor</span>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="bg-slate-800 border-slate-700 text-slate-100">
+                        <p className="text-sm">Can protect one player each night from being killed.</p>
+                      </HoverCardContent>
+                    </HoverCard>
                     <Switch
                       checked={roles.doctor}
                       onCheckedChange={(checked) => setRoles({ ...roles, doctor: checked })}
@@ -191,7 +217,14 @@ export default function Home() {
 
                   {/* Murderer Role */}
                   <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-red-900/30">
-                    <span className="text-red-400 font-medium">Murderer</span>
+                    <HoverCard openDelay={300} closeDelay={200}>
+                      <HoverCardTrigger asChild>
+                        <span className="text-red-400 font-medium cursor-help">Murderer</span>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="bg-slate-800 border-slate-700 text-slate-100">
+                        <p className="text-sm">Can kill players when alone with them at night. Must attempt to kill at least once every two nights.</p>
+                      </HoverCardContent>
+                    </HoverCard>
                     <Switch
                       checked={roles.murderer}
                       disabled={true}
