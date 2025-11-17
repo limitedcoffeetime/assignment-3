@@ -33,7 +33,7 @@ REASONING STYLE: When providing reasoning, be CONCISE. Focus only on your key de
   getNightPrompt(context: RoleContext): string {
     const { alivePlayers } = context;
 
-    return `Who do you want to protect tonight? Choose one player (you can protect yourself): ${alivePlayers.join(', ')}`;
+    return `Who do you want to protect tonight? Choose one player (you can protect yourself): ${alivePlayers.join(', ')}. IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere!`;
   },
 
   async interpretNightAction(

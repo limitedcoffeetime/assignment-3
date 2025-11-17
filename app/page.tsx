@@ -21,10 +21,9 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
-import MultiAgentView from '@/components/MultiAgentView';
 import MurderMysteryView from '@/components/MurderMysteryView';
 
-type GameView = 'welcome' | 'classic' | 'multi-agent' | 'strategic-sharing';
+type GameView = 'welcome' | 'classic' | 'multi-agent';
 
 export default function Home() {
   const [view, setView] = useState<GameView>('welcome');
@@ -251,15 +250,9 @@ export default function Home() {
     );
   }
 
-  // If strategic sharing mode, show multi-agent view
-  if (view === 'strategic-sharing') {
-    return <MultiAgentView onBackToExample={() => setView('welcome')} />;
-  }
-
   // Multi-agent view mode
   if (view === 'multi-agent') {
     return <MurderMysteryView
-      onSwitchMode={() => setView('strategic-sharing')}
       enabledRoles={{ detective: roles.detective, doctor: roles.doctor }}
       initialShowAIBrains={true}
     />;
@@ -268,7 +261,6 @@ export default function Home() {
   // Classic mode - AI Brains hidden by default
   if (view === 'classic') {
     return <MurderMysteryView
-      onSwitchMode={() => setView('strategic-sharing')}
       enabledRoles={{ detective: roles.detective, doctor: roles.doctor }}
       initialShowAIBrains={false}
     />;

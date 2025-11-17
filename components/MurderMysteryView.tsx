@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -22,11 +22,9 @@ interface DebugEvent {
 type Phase = 'init' | string; // night_1, day_1_discussion, day_1_voting, etc.
 
 export default function MurderMysteryView({
-  onSwitchMode,
   enabledRoles,
   initialShowAIBrains = true
 }: {
-  onSwitchMode?: () => void;
   enabledRoles?: { detective: boolean; doctor: boolean };
   initialShowAIBrains?: boolean;
 }) {
@@ -49,6 +47,16 @@ export default function MurderMysteryView({
   const [showAIBrains, setShowAIBrains] = useState(initialShowAIBrains);
   const [darkMode, setDarkMode] = useState(false);
 
+  // Refs for auto-scrolling to bottom - use refs for the scroll containers themselves
+  const finnScrollRef = useRef<HTMLDivElement>(null);
+  const aliceScrollRef = useRef<HTMLDivElement>(null);
+  const bobScrollRef = useRef<HTMLDivElement>(null);
+  const charlieScrollRef = useRef<HTMLDivElement>(null);
+  const debugScrollRef = useRef<HTMLDivElement>(null);
+
+  // Ref for the input to maintain focus
+  const inputRef = useRef<HTMLInputElement>(null);
+
   // Auto-toggle dark mode based on phase
   useEffect(() => {
     if (currentPhase.startsWith('night_')) {
@@ -57,6 +65,52 @@ export default function MurderMysteryView({
       setDarkMode(false);
     }
   }, [currentPhase]);
+
+  // Auto-scroll to bottom when messages update - use requestAnimationFrame to avoid focus issues
+  useEffect(() => {
+    const activeElement = document.activeElement;
+    requestAnimationFrame(() => {
+      if (finnScrollRef.current) {
+        finnScrollRef.current.scrollTop = finnScrollRef.current.scrollHeight;
+      }
+      // Restore focus if it was on the input
+      if (activeElement === inputRef.current && inputRef.current) {
+        inputRef.current.focus();
+      }
+    });
+  }, [finnConvo]);
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      if (aliceScrollRef.current) {
+        aliceScrollRef.current.scrollTop = aliceScrollRef.current.scrollHeight;
+      }
+    });
+  }, [aliceConvo]);
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      if (bobScrollRef.current) {
+        bobScrollRef.current.scrollTop = bobScrollRef.current.scrollHeight;
+      }
+    });
+  }, [bobConvo]);
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      if (charlieScrollRef.current) {
+        charlieScrollRef.current.scrollTop = charlieScrollRef.current.scrollHeight;
+      }
+    });
+  }, [charlieConvo]);
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      if (debugScrollRef.current) {
+        debugScrollRef.current.scrollTop = debugScrollRef.current.scrollHeight;
+      }
+    });
+  }, [debugEvents]);
 
   // Parse individual message
   const parseMessage = (msg: any) => {
@@ -141,7 +195,7 @@ export default function MurderMysteryView({
         }
         parseMessage({
           agent: r.agent,
-          from: 'Game Master',
+          from: 'Orchestrator',
           to: r.agent,
           message: `🔒 Your secret role: ${r.role.toUpperCase()}`,
           isPrivate: true
@@ -178,7 +232,7 @@ export default function MurderMysteryView({
 
       parseMessage({
         agent: 'Finn',
-        from: 'Game Master',
+        from: 'Orchestrator',
         to: 'Finn',
         message: nightPrompt
       });
@@ -189,7 +243,7 @@ export default function MurderMysteryView({
       // Show discussion prompt
       parseMessage({
         agent: 'Finn',
-        from: 'Game Master',
+        from: 'Orchestrator',
         to: 'Finn',
         message: 'DAY DISCUSSION: Make a public statement. Share what you saw, make accusations, or say anything.'
       });
@@ -200,7 +254,7 @@ export default function MurderMysteryView({
       // Show voting prompt
       parseMessage({
         agent: 'Finn',
-        from: 'Game Master',
+        from: 'Orchestrator',
         to: 'Finn',
         message: 'VOTING PHASE: Vote to hang someone or abstain. Say a player name or "abstain".'
       });
@@ -242,7 +296,7 @@ export default function MurderMysteryView({
           if (p.agent === 'Finn') return; // Skip human player
           parseMessage({
             agent: p.agent,
-            from: 'Game Master',
+            from: 'Orchestrator',
             to: p.agent,
             message: `📋 ${p.prompt}`,
             isPrivate: true
@@ -255,7 +309,7 @@ export default function MurderMysteryView({
           parseMessage({
             agent: r.agent,
             from: r.agent,
-            to: 'Game Master',
+            to: 'Orchestrator',
             message: `${r.response}${r.reasoning ? `\n\n💭 Reasoning: ${r.reasoning}` : ''}`,
             isPrivate: true
           });
@@ -265,7 +319,7 @@ export default function MurderMysteryView({
         data.observations.forEach((obs: any) => {
           parseMessage({
             agent: obs.agent,
-            from: 'Game Master',
+            from: 'Orchestrator',
             to: obs.agent,
             message: `🌙 ${obs.observation}`,
             isPrivate: true
@@ -277,7 +331,7 @@ export default function MurderMysteryView({
           ['Finn', 'Alice', 'Bob', 'Charlie'].forEach(agent => {
             parseMessage({
               agent,
-              from: 'Game Master',
+              from: 'Orchestrator',
               to: 'Everyone',
               message: `💀 ${data.deaths.join(', ')} died last night.`
             });
@@ -286,7 +340,7 @@ export default function MurderMysteryView({
           ['Finn', 'Alice', 'Bob', 'Charlie'].forEach(agent => {
             parseMessage({
               agent,
-              from: 'Game Master',
+              from: 'Orchestrator',
               to: 'Everyone',
               message: `No one died last night.`
             });
@@ -302,7 +356,7 @@ export default function MurderMysteryView({
           if (data.humanPlayerDied) {
             parseMessage({
               agent: 'Finn',
-              from: 'Game Master',
+              from: 'Orchestrator',
               to: 'Finn',
               message: `💀 GAME OVER - You died!\n\n${data.winReason}\n\nThe game will continue among the AI agents, but your story ends here.`,
               isPrivate: true
@@ -311,7 +365,7 @@ export default function MurderMysteryView({
             ['Finn', 'Alice', 'Bob', 'Charlie'].forEach(agent => {
               parseMessage({
                 agent,
-                from: 'Game Master',
+                from: 'Orchestrator',
                 to: 'Everyone',
                 message: `🎮 GAME OVER! ${data.winner.toUpperCase()} WIN!\n\nReason: ${data.winReason}`
               });
@@ -333,7 +387,7 @@ export default function MurderMysteryView({
           if (p.agent === 'Finn') return; // Skip human player
           parseMessage({
             agent: p.agent,
-            from: 'Game Master',
+            from: 'Orchestrator',
             to: p.agent,
             message: `📋 ${p.prompt}`,
             isPrivate: true
@@ -378,7 +432,7 @@ export default function MurderMysteryView({
           if (p.agent === 'Finn') return; // Skip human player
           parseMessage({
             agent: p.agent,
-            from: 'Game Master',
+            from: 'Orchestrator',
             to: p.agent,
             message: `📋 ${p.prompt}`,
             isPrivate: true
@@ -391,7 +445,7 @@ export default function MurderMysteryView({
           parseMessage({
             agent: v.agent,
             from: v.agent,
-            to: 'Game Master',
+            to: 'Orchestrator',
             message: `Vote: ${v.vote}${v.reasoning ? `\n\n💭 Reasoning: ${v.reasoning}` : ''}`,
             isPrivate: true
           });
@@ -402,7 +456,7 @@ export default function MurderMysteryView({
           const voteList = data.votes.map((v: any) => `${v.agent} → ${v.vote}`).join(', ');
           parseMessage({
             agent,
-            from: 'Game Master',
+            from: 'Orchestrator',
             to: 'Everyone',
             message: `🗳️ Votes: ${voteList}`
           });
@@ -413,7 +467,7 @@ export default function MurderMysteryView({
           ['Finn', 'Alice', 'Bob', 'Charlie'].forEach(agent => {
             parseMessage({
               agent,
-              from: 'Game Master',
+              from: 'Orchestrator',
               to: 'Everyone',
               message: `⚖️ ${data.hanged} was hanged! They were: ${data.hangedRole.toUpperCase()}`
             });
@@ -422,7 +476,7 @@ export default function MurderMysteryView({
           ['Finn', 'Alice', 'Bob', 'Charlie'].forEach(agent => {
             parseMessage({
               agent,
-              from: 'Game Master',
+              from: 'Orchestrator',
               to: 'Everyone',
               message: `⚖️ No one was hanged (tie or insufficient votes)`
             });
@@ -436,7 +490,7 @@ export default function MurderMysteryView({
           ['Finn', 'Alice', 'Bob', 'Charlie'].forEach(agent => {
             parseMessage({
               agent,
-              from: 'Game Master',
+              from: 'Orchestrator',
               to: 'Everyone',
               message: `🎮 GAME OVER! ${data.winner.toUpperCase()} WIN!\n\nReason: ${data.winReason}`
             });
@@ -469,7 +523,7 @@ export default function MurderMysteryView({
     parseMessage({
       agent: 'Finn',
       from: 'Finn',
-      to: currentPhase.includes('discussion') ? 'Everyone' : 'Game Master',
+      to: currentPhase.includes('discussion') ? 'Everyone' : 'Orchestrator',
       message: response
     });
 
@@ -477,12 +531,14 @@ export default function MurderMysteryView({
     await processPhase(currentPhase, response);
   };
 
-  const ConversationColumn = ({ title, messages, bgColor, showInput, showRole }: {
+  const ConversationColumn = ({ title, messages, bgColor, showInput, showRole, scrollRef, inputRef }: {
     title: string;
     messages: ConversationMessage[];
     bgColor: string;
     showInput?: boolean;
     showRole?: boolean;
+    scrollRef?: React.RefObject<HTMLDivElement | null>;
+    inputRef?: React.RefObject<HTMLInputElement | null>;
   }) => (
     <div className="flex-1 flex flex-col h-full">
       <div className={`${bgColor} text-white px-3 py-2 font-bold text-sm rounded-t-lg shadow-lg transition-colors duration-1000 ${
@@ -503,7 +559,9 @@ export default function MurderMysteryView({
           </span>
         )}
       </div>
-      <Card className={`flex-1 rounded-t-none rounded-b-lg p-3 overflow-y-auto min-h-0 transition-colors duration-1000 ${
+      <Card
+        ref={scrollRef}
+        className={`flex-1 rounded-t-none rounded-b-lg p-3 overflow-y-auto min-h-0 transition-colors duration-1000 ${
         darkMode
           ? 'bg-gradient-to-b from-slate-900 to-slate-800 border-slate-700 shadow-[inset_0_2px_20px_rgba(0,0,0,0.4)]'
           : 'bg-gradient-to-b from-white to-slate-50 border-slate-300 shadow-[inset_0_2px_10px_rgba(0,0,0,0.05)]'
@@ -517,7 +575,7 @@ export default function MurderMysteryView({
                   ? darkMode
                     ? 'bg-gradient-to-br from-red-950/80 to-red-900/60 text-red-100 border border-red-700/70 shadow-lg shadow-red-900/30'
                     : 'bg-gradient-to-br from-red-50 to-red-100/50 text-red-950 border border-red-300 shadow-md shadow-red-200/40'
-                  : msg.from === 'Game Master'
+                  : msg.from === 'Orchestrator'
                   ? darkMode
                     ? 'bg-gradient-to-br from-blue-950/80 to-blue-900/60 text-blue-100 border border-blue-700/70 shadow-lg shadow-blue-900/30'
                     : 'bg-gradient-to-br from-blue-50 to-blue-100/50 text-blue-950 border border-blue-300 shadow-md shadow-blue-200/40'
@@ -537,6 +595,7 @@ export default function MurderMysteryView({
           {showInput && waitingForFinn && !gameOver && (
             <div className="mt-2 flex gap-2">
               <Input
+                ref={inputRef}
                 type="text"
                 placeholder={darkMode ? "Your response..." : "Your response..."}
                 value={finnInput}
@@ -578,9 +637,11 @@ export default function MurderMysteryView({
           ? 'bg-gradient-to-r from-purple-950 to-slate-800 text-purple-200 shadow-black/50'
           : 'bg-gradient-to-r from-purple-700 to-slate-700 text-white shadow-slate-900/30'
       }`}>
-        🔍 Game Master Debug
+        🔍 Orchestrator Debug
       </div>
-      <Card className={`flex-1 rounded-t-none rounded-b-lg p-3 overflow-y-auto min-h-0 font-mono text-xs transition-colors duration-1000 ${
+      <Card
+        ref={debugScrollRef}
+        className={`flex-1 rounded-t-none rounded-b-lg p-3 overflow-y-auto min-h-0 font-mono text-xs transition-colors duration-1000 ${
         darkMode
           ? 'bg-gradient-to-b from-slate-950 to-slate-900 border-purple-900/50 shadow-[inset_0_2px_20px_rgba(0,0,0,0.4)]'
           : 'bg-gradient-to-b from-slate-800 to-slate-700 border-slate-600 shadow-[inset_0_2px_10px_rgba(0,0,0,0.3)]'
@@ -668,19 +729,6 @@ export default function MurderMysteryView({
           >
             {showAIBrains ? '👁️ Hide AI Brains' : '👁️ Show AI Brains'}
           </Button>
-          {onSwitchMode && (
-            <Button
-              onClick={onSwitchMode}
-              variant="outline"
-              className={`transition-colors duration-1000 ${
-                darkMode
-                  ? 'bg-slate-800 text-slate-100 border-slate-600 hover:bg-slate-700 hover:border-slate-500 shadow-lg shadow-black/20'
-                  : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-50 hover:border-slate-400 shadow-md'
-              }`}
-            >
-              📊 Strategic Sharing
-            </Button>
-          )}
         </div>
       </div>
 
@@ -715,6 +763,8 @@ export default function MurderMysteryView({
           bgColor={darkMode ? 'bg-gradient-to-r from-slate-700 to-slate-600' : 'bg-gradient-to-r from-slate-600 to-slate-500'}
           showInput={true}
           showRole={true}
+          scrollRef={finnScrollRef}
+          inputRef={inputRef}
         />
         {showAIBrains && (
           <>
@@ -722,16 +772,19 @@ export default function MurderMysteryView({
               title="🦊 Alice"
               messages={aliceConvo}
               bgColor={darkMode ? 'bg-gradient-to-r from-orange-800 to-orange-700' : 'bg-gradient-to-r from-orange-600 to-orange-500'}
+              scrollRef={aliceScrollRef}
             />
             <ConversationColumn
               title="🐻 Bob"
               messages={bobConvo}
               bgColor={darkMode ? 'bg-gradient-to-r from-blue-800 to-blue-700' : 'bg-gradient-to-r from-blue-600 to-blue-500'}
+              scrollRef={bobScrollRef}
             />
             <ConversationColumn
               title="🦁 Charlie"
               messages={charlieConvo}
               bgColor={darkMode ? 'bg-gradient-to-r from-yellow-700 to-yellow-600' : 'bg-gradient-to-r from-yellow-600 to-yellow-500'}
+              scrollRef={charlieScrollRef}
             />
             <DebugColumn />
           </>

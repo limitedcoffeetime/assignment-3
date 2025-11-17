@@ -33,7 +33,7 @@ REASONING STYLE: When providing reasoning, be CONCISE. Focus only on your key de
   },
 
   getNightPrompt(context: RoleContext): string {
-    return `Where do you go tonight? (stay home / visit [name])`;
+    return `Where do you go tonight? (stay home / visit [name]). IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere!`;
   },
 
   async interpretNightAction(

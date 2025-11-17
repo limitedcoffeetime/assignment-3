@@ -35,9 +35,9 @@ REASONING STYLE: When providing reasoning, be CONCISE. Focus only on your key de
     const otherPlayers = alivePlayers.filter(p => p !== agentName);
 
     if (mustHaveIntent) {
-      return `You MUST have "intent to kill" this night (you didn't have intent last night). Where do you go? (stay home / visit [name])`;
+      return `You MUST have "intent to kill" this night (you didn't have intent last night). Where do you go? (stay home / visit [name]). IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere!`;
     } else {
-      return `Where do you go tonight? Do you have intent to kill? (stay home / visit [name], intent: yes/no)`;
+      return `Where do you go tonight? Do you have intent to kill? (stay home / visit [name], intent: yes/no). IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere!`;
     }
   },
 

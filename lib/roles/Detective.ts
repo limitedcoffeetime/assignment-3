@@ -34,7 +34,7 @@ REASONING STYLE: When providing reasoning, be CONCISE. Focus only on your key de
     const { alivePlayers, agentName } = context;
     const others = alivePlayers.filter(p => p !== agentName);
 
-    return `Who do you want to investigate tonight? Choose one player: ${others.join(', ')}`;
+    return `Who do you want to investigate tonight? Choose one player: ${others.join(', ')}. IMPORTANT: If you visit someone, you go to THEIR home - they might not be there if they visited elsewhere!`;
   },
 
   async interpretNightAction(

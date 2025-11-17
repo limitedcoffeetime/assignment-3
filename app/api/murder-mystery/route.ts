@@ -10,6 +10,11 @@ import { MurderMysteryOrchestrator } from '@/lib/orchestrators/MurderMysteryOrch
 // Store game instance in memory (persists in dev mode)
 let gameInstance: MurderMysteryOrchestrator | null = null;
 
+// Helper to reduce API burst load
+async function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -83,6 +88,9 @@ export async function POST(req: NextRequest) {
         humanResponseMap,
         true
       );
+
+      // Add delay to avoid overwhelming Gemini API with parallel requests
+      await sleep(500);
 
       // Interpret each action using LLM (returns GameEvent[] per player)
       const allPlayerEvents = await Promise.all(
@@ -292,6 +300,9 @@ export async function POST(req: NextRequest) {
         humanResponseMap,
         true
       );
+
+      // Add delay to avoid overwhelming Gemini API with parallel requests
+      await sleep(500);
 
       // Interpret votes using LLM
       const votes = await Promise.all(

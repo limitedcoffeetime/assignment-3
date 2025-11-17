@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,44 @@ export default function MultiAgentView({ onBackToExample }: { onBackToExample?: 
   const [hanzoConvo, setHanzoConvo] = useState<ConversationMessage[]>([]);
   const [kendrickConvo, setKendrickConvo] = useState<ConversationMessage[]>([]);
   const [debugEvents, setDebugEvents] = useState<DebugEvent[]>([]);
+
+  // Refs for auto-scrolling
+  const finnScrollRef = useRef<HTMLDivElement>(null);
+  const genjiScrollRef = useRef<HTMLDivElement>(null);
+  const hanzoScrollRef = useRef<HTMLDivElement>(null);
+  const kendrickScrollRef = useRef<HTMLDivElement>(null);
+  const debugScrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when messages update
+  useEffect(() => {
+    if (finnScrollRef.current) {
+      finnScrollRef.current.scrollTop = finnScrollRef.current.scrollHeight;
+    }
+  }, [finnConvo]);
+
+  useEffect(() => {
+    if (genjiScrollRef.current) {
+      genjiScrollRef.current.scrollTop = genjiScrollRef.current.scrollHeight;
+    }
+  }, [genjiConvo]);
+
+  useEffect(() => {
+    if (hanzoScrollRef.current) {
+      hanzoScrollRef.current.scrollTop = hanzoScrollRef.current.scrollHeight;
+    }
+  }, [hanzoConvo]);
+
+  useEffect(() => {
+    if (kendrickScrollRef.current) {
+      kendrickScrollRef.current.scrollTop = kendrickScrollRef.current.scrollHeight;
+    }
+  }, [kendrickConvo]);
+
+  useEffect(() => {
+    if (debugScrollRef.current) {
+      debugScrollRef.current.scrollTop = debugScrollRef.current.scrollHeight;
+    }
+  }, [debugEvents]);
 
   // Parse individual message
   const parseMessage = (msg: any) => {
@@ -204,17 +242,18 @@ export default function MultiAgentView({ onBackToExample }: { onBackToExample?: 
     await processStep(currentStep, response);
   };
 
-  const ConversationColumn = ({ title, messages, bgColor, showInput }: {
+  const ConversationColumn = ({ title, messages, bgColor, showInput, scrollRef }: {
     title: string;
     messages: ConversationMessage[];
     bgColor: string;
     showInput?: boolean;
+    scrollRef?: React.RefObject<HTMLDivElement | null>;
   }) => (
     <div className="flex-1 flex flex-col h-full">
       <div className={`${bgColor} text-white px-3 py-2 font-semibold text-sm rounded-t-lg`}>
         {title}
       </div>
-      <Card className="flex-1 rounded-t-none rounded-b-lg p-3 overflow-y-auto bg-white border border-slate-200 min-h-0">
+      <Card ref={scrollRef} className="flex-1 rounded-t-none rounded-b-lg p-3 overflow-y-auto bg-white border border-slate-200 min-h-0">
         <div className="flex flex-col gap-2">
           {messages.map((msg, i) => (
             <div
@@ -261,7 +300,7 @@ export default function MultiAgentView({ onBackToExample }: { onBackToExample?: 
       <div className="bg-slate-700 text-white px-3 py-2 font-semibold text-sm rounded-t-lg">
         🔍 Orchestrator Debug
       </div>
-      <Card className="flex-1 rounded-t-none rounded-b-lg p-3 overflow-y-auto bg-slate-900 border border-slate-700 min-h-0 font-mono text-xs">
+      <Card ref={debugScrollRef} className="flex-1 rounded-t-none rounded-b-lg p-3 overflow-y-auto bg-slate-900 border border-slate-700 min-h-0 font-mono text-xs">
         <div className="flex flex-col gap-2">
           {debugEvents.map((event, i) => (
             <div key={i} className="bg-slate-800 text-slate-100 px-2 py-1.5 rounded border border-slate-700">
@@ -322,21 +361,25 @@ export default function MultiAgentView({ onBackToExample }: { onBackToExample?: 
           messages={finnConvo}
           bgColor="bg-slate-600"
           showInput={true}
+          scrollRef={finnScrollRef}
         />
         <ConversationColumn
           title="🥷 Genji"
           messages={genjiConvo}
           bgColor="bg-green-600"
+          scrollRef={genjiScrollRef}
         />
         <ConversationColumn
           title="🏹 Hanzo"
           messages={hanzoConvo}
           bgColor="bg-blue-600"
+          scrollRef={hanzoScrollRef}
         />
         <ConversationColumn
           title="🎤 Kendrick"
           messages={kendrickConvo}
           bgColor="bg-purple-600"
+          scrollRef={kendrickScrollRef}
         />
         <DebugColumn />
       </div>
